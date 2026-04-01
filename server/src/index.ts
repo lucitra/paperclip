@@ -1,7 +1,10 @@
 /// <reference path="./types/express.d.ts" />
+import fs from "node:fs";
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import { createServer } from "node:http";
+import path from "node:path";
 import { resolve } from "node:path";
+import os from "node:os";
 import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
 import { pathToFileURL } from "node:url";
@@ -831,6 +834,38 @@ export async function startServer(): Promise<StartedServer> {
       resolveListen();
     });
   });
+
+  // Ensure plugins directory uses the workspace SDK (with fork extensions).
+  // Symlink the workspace @paperclipai/plugin-sdk into the plugins node_modules
+  // so workers resolve our fork's SDK instead of the npm-published version.
+  try {
+    const pluginsSdkDir = path.join(os.homedir(), ".paperclip", "plugins", "node_modules", "@paperclipai", "plugin-sdk");
+    const thisDir = path.dirname(new URL(import.meta.url).pathname);
+    const workspaceSdk = path.resolve(thisDir, "../../packages/plugins/sdk");
+    if (fs.existsSync(workspaceSdk) && fs.existsSync(path.join(workspaceSdk, "dist"))) {
+      // Remove existing (npm-installed) and replace with symlink to workspace
+      if (fs.existsSync(pluginsSdkDir)) {
+        const stat = fs.lstatSync(pluginsSdkDir);
+        if (stat.isSymbolicLink()) {
+          // Already a symlink — check if it points to the right place
+          const target = fs.readlinkSync(pluginsSdkDir);
+          if (target !== workspaceSdk) {
+            fs.unlinkSync(pluginsSdkDir);
+            fs.symlinkSync(workspaceSdk, pluginsSdkDir);
+          }
+        } else {
+          fs.rmSync(pluginsSdkDir, { recursive: true });
+          fs.symlinkSync(workspaceSdk, pluginsSdkDir);
+        }
+      } else {
+        fs.mkdirSync(path.dirname(pluginsSdkDir), { recursive: true });
+        fs.symlinkSync(workspaceSdk, pluginsSdkDir);
+      }
+      logger.info("Workspace plugin SDK linked for plugin workers");
+    }
+  } catch (err) {
+    logger.warn({ err }, "Failed to link workspace SDK (non-fatal)");
+  }
 
   // Auto-install bundled plugins (idempotent — skips if already installed)
   void autoInstallBundledPlugins(db as any).catch((err) => {

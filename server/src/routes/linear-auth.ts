@@ -1342,7 +1342,13 @@ export function linearAuthRoutes(db: Db, config: LinearAuthConfig) {
       let paperclipIssueId: string | null = null;
 
       if (linkEntry) {
-        paperclipIssueId = JSON.parse(String(linkEntry.valueJson));
+        // valueJson may be a JSON-encoded string ('"uuid"') or a raw string ('uuid')
+        const raw = String(linkEntry.valueJson);
+        try {
+          paperclipIssueId = JSON.parse(raw);
+        } catch {
+          paperclipIssueId = raw;
+        }
       } else {
         // Fallback: look up by identifier (Linear sends identifier in webhook payload)
         const identifier = data.identifier as string | undefined;

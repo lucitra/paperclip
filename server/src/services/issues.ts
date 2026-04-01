@@ -1019,11 +1019,7 @@ export function issueService(db: Db) {
           .returning({ issueCounter: companies.issueCounter, issuePrefix: companies.issuePrefix });
 
         const issueNumber = company.issueCounter;
-        // Use P-prefix for Paperclip-native issues to avoid collision with Linear numbering
-        const isLinearOrigin = issueData.originKind === "linear";
-        const identifier = isLinearOrigin
-          ? `${company.issuePrefix}-${issueNumber}`
-          : `${company.issuePrefix}-P${issueNumber}`;
+        const identifier = `${company.issuePrefix}-${issueNumber}`;
 
         const values = {
           ...issueData,

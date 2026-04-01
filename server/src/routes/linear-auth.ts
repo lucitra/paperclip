@@ -874,6 +874,9 @@ export function linearAuthRoutes(db: Db, config: LinearAuthConfig) {
         (i) => i.identifier && /^[A-Z]+-\d+$/.test(i.identifier),
       );
 
+      // Extract team key from first issue identifier (e.g. "LUC" from "LUC-15")
+      const teamKey = linearIssues[0]?.identifier?.split("-")[0];
+
       if (linearIssues.length === 0) {
         res.json({ ok: true, synced: 0, message: "No linked issues found" });
         return;
@@ -955,53 +958,82 @@ export function linearAuthRoutes(db: Db, config: LinearAuthConfig) {
       let synced = 0;
       let errors = 0;
 
+      // Batch-fetch all issues from Linear in pages (avoids rate limits from per-issue queries)
+      type LinearIssueNode = {
+        id: string; identifier: string; title: string;
+        description: string | null; url: string; priority: number; estimate: number | null; number: number;
+        state: { name: string; type: string };
+        assignee: { name: string; email: string } | null;
+        labels: { nodes: Array<{ name: string; color: string }> };
+        project: { id: string; name: string } | null;
+        cycle: { id: string; name: string; number: number; startsAt: string; endsAt: string; description: string | null } | null;
+      };
+
+      const linearIssueMap = new Map<string, LinearIssueNode>(); // identifier → Linear issue
+      let hasMore = true;
+      let cursor: string | undefined;
+
+      while (hasMore) {
+        const batchRes = await fetch("https://api.linear.app/graphql", {
+          method: "POST",
+          headers: { Authorization: token, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            query: `query($teamKey: String!, $after: String) {
+              issues(
+                filter: { team: { key: { eq: $teamKey } } }
+                first: 100
+                after: $after
+                orderBy: updatedAt
+              ) {
+                pageInfo { hasNextPage endCursor }
+                nodes {
+                  id identifier title description url priority estimate number
+                  state { name type }
+                  assignee { name email }
+                  labels { nodes { name color } }
+                  project { id name }
+                  cycle { id name number startsAt endsAt description }
+                }
+              }
+            }`,
+            variables: { teamKey: teamKey ?? "LUC", after: cursor ?? null },
+          }),
+        });
+
+        if (!batchRes.ok) {
+          console.warn(`[linear-sync] batch fetch failed: ${batchRes.status}`);
+          break;
+        }
+
+        const batchData = (await batchRes.json()) as {
+          data?: { issues?: {
+            pageInfo: { hasNextPage: boolean; endCursor: string | null };
+            nodes: LinearIssueNode[];
+          } };
+          errors?: Array<{ message: string }>;
+        };
+
+        if (batchData.errors?.length) {
+          console.warn("[linear-sync] GraphQL errors:", batchData.errors);
+          break;
+        }
+
+        for (const node of batchData.data?.issues?.nodes ?? []) {
+          linearIssueMap.set(node.identifier, node);
+        }
+
+        hasMore = batchData.data?.issues?.pageInfo.hasNextPage ?? false;
+        cursor = batchData.data?.issues?.pageInfo.endCursor ?? undefined;
+      }
+
+      console.log(`[linear-sync] fetched ${linearIssueMap.size} issues from Linear in batch`);
+
       for (const pIssue of linearIssues) {
         if (!pIssue.identifier) continue;
-        const [teamKey, numStr] = pIssue.identifier.split("-");
-        if (!teamKey || !numStr) continue;
-        const num = parseInt(numStr, 10);
 
         try {
-          const fetchRes = await fetch("https://api.linear.app/graphql", {
-            method: "POST",
-            headers: { Authorization: token, "Content-Type": "application/json" },
-            body: JSON.stringify({
-              query: `query($teamKey: String!, $number: Float!) {
-                issues(filter: { team: { key: { eq: $teamKey } }, number: { eq: $number } }, first: 1) {
-                  nodes {
-                    id identifier title description url priority estimate number
-                    state { name type }
-                    assignee { name email }
-                    labels { nodes { name color } }
-                    project { id name }
-                    cycle { id name number startsAt endsAt description }
-                  }
-                }
-              }`,
-              variables: { teamKey, number: num },
-            }),
-          });
-
-          if (!fetchRes.ok) continue;
-
-          const data = (await fetchRes.json()) as {
-            data?: {
-              issues?: {
-                nodes?: Array<{
-                  id: string; identifier: string; title: string;
-                  description: string | null; url: string; priority: number; estimate: number | null; number: number;
-                  state: { name: string; type: string };
-                  assignee: { name: string; email: string } | null;
-                  labels: { nodes: Array<{ name: string; color: string }> };
-                  project: { id: string; name: string } | null;
-                  cycle: { id: string; name: string; number: number; startsAt: string; endsAt: string; description: string | null } | null;
-                }>;
-              };
-            };
-          };
-
-          const li = data.data?.issues?.nodes?.[0];
-          if (!li) continue;
+          const li = linearIssueMap.get(pIssue.identifier);
+          if (!li) { errors++; continue; }
 
           const newStatus = statusMap[li.state.type] ?? "backlog";
           const newPriority = priorityMap[li.priority] ?? "medium";
@@ -1271,9 +1303,12 @@ export function linearAuthRoutes(db: Db, config: LinearAuthConfig) {
     const data = payload.data as Record<string, unknown> | undefined;
 
     if (!data || !type || !action) {
+      console.log(`[linear-webhook] skipped: missing data/type/action`);
       res.status(200).json({ ok: true });
       return;
     }
+
+    console.log(`[linear-webhook] received: type=${type} action=${action} id=${data.id}`);
 
     try {
       const { issues: issuesTable, pluginState: pluginStateTable } = await import("@paperclipai/db");
@@ -1286,6 +1321,7 @@ export function linearAuthRoutes(db: Db, config: LinearAuthConfig) {
         .limit(1);
 
       if (!plugin) {
+        console.log(`[linear-webhook] no Linear plugin installed, skipping`);
         res.status(200).json({ ok: true });
         return;
       }
@@ -1303,12 +1339,40 @@ export function linearAuthRoutes(db: Db, config: LinearAuthConfig) {
         .where(eq(pluginStateTable.stateKey, `linear:${linearIssueId}`))
         .limit(1);
 
-      if (!linkEntry) {
-        res.status(200).json({ ok: true }); // Not a linked issue
-        return;
+      let paperclipIssueId: string | null = null;
+
+      if (linkEntry) {
+        paperclipIssueId = JSON.parse(String(linkEntry.valueJson));
+      } else {
+        // Fallback: look up by identifier (Linear sends identifier in webhook payload)
+        const identifier = data.identifier as string | undefined;
+        console.log(`[linear-webhook] no link for linear:${linearIssueId}, trying identifier: ${identifier}`);
+        if (identifier) {
+          const [issueByIdentifier] = await db.select({ id: issuesTable.id })
+            .from(issuesTable)
+            .where(eq(issuesTable.identifier, identifier))
+            .limit(1);
+          if (issueByIdentifier) {
+            paperclipIssueId = issueByIdentifier.id;
+            // Backfill the link for future webhook lookups
+            await db.insert(pluginStateTable).values({
+              pluginId: plugin.id,
+              scopeKind: "instance",
+              scopeId: null,
+              namespace: "default",
+              stateKey: `linear:${linearIssueId}`,
+              valueJson: JSON.stringify(paperclipIssueId),
+            }).onConflictDoNothing();
+            console.log(`[linear-webhook] backfilled link for ${identifier}`);
+          }
+        }
       }
 
-      const paperclipIssueId = JSON.parse(String(linkEntry.valueJson));
+      if (!paperclipIssueId) {
+        console.log(`[linear-webhook] could not resolve issue for Linear ID ${linearIssueId}`);
+        res.status(200).json({ ok: true });
+        return;
+      }
 
       // Look up the Paperclip issue for companyId (needed for activity logging)
       const [paperclipIssue] = await db

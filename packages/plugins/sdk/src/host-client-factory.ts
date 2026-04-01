@@ -165,6 +165,12 @@ export interface HostServices {
     createComment(params: WorkerToHostMethods["issues.createComment"][0]): Promise<WorkerToHostMethods["issues.createComment"][1]>;
   };
 
+  /** Lucitra extension: labels API. */
+  labels: {
+    list(params: WorkerToHostMethods["labels.list"][0]): Promise<WorkerToHostMethods["labels.list"][1]>;
+    create(params: WorkerToHostMethods["labels.create"][0]): Promise<WorkerToHostMethods["labels.create"][1]>;
+  };
+
   /** Provides `issues.documents.list`, `issues.documents.get`, `issues.documents.upsert`, `issues.documents.delete`. */
   issueDocuments: {
     list(params: WorkerToHostMethods["issues.documents.list"][0]): Promise<WorkerToHostMethods["issues.documents.list"][1]>;
@@ -305,6 +311,10 @@ const METHOD_CAPABILITY_MAP: Record<WorkerToHostMethodName, PluginCapability | n
   "issues.update": "issues.update",
   "issues.listComments": "issue.comments.read",
   "issues.createComment": "issue.comments.create",
+
+  // Labels (Lucitra extension)
+  "labels.list": "labels.read",
+  "labels.create": "labels.create",
 
   // Issue Documents
   "issues.documents.list": "issue.documents.read",
@@ -495,6 +505,14 @@ export function createHostClientHandlers(
     }),
     "issues.createComment": gated("issues.createComment", async (params) => {
       return services.issues.createComment(params);
+    }),
+
+    // Labels (Lucitra extension)
+    "labels.list": gated("labels.list", async (params) => {
+      return services.labels.list(params);
+    }),
+    "labels.create": gated("labels.create", async (params) => {
+      return services.labels.create(params);
     }),
 
     // Issue Documents

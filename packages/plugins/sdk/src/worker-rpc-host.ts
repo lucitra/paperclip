@@ -595,6 +595,8 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
             description: input.description,
             priority: input.priority,
             assigneeAgentId: input.assigneeAgentId,
+            // Lucitra extension: pass through labelIds if provided
+            ...((input as any).labelIds ? { labelIds: (input as any).labelIds } : {}),
           });
         },
 
@@ -638,6 +640,16 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
           async delete(issueId: string, key: string, companyId: string) {
             return callHost("issues.documents.delete", { issueId, key, companyId });
           },
+        },
+      },
+
+      // Lucitra extension: labels API
+      labels: {
+        async list(companyId: string) {
+          return callHost("labels.list" as any, { companyId });
+        },
+        async create(companyId: string, name: string, color: string) {
+          return callHost("labels.create" as any, { companyId, name, color });
         },
       },
 

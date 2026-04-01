@@ -448,6 +448,9 @@ export const PLUGIN_CAPABILITIES = [
   "agent.sessions.close",
   "activity.log.write",
   "metrics.write",
+  // Labels (Lucitra extension)
+  "labels.read",
+  "labels.create",
   // Plugin State
   "plugin.state.read",
   "plugin.state.write",

@@ -1,5 +1,5 @@
 import type { Db } from "@paperclipai/db";
-import { pluginLogs, agentTaskSessions as agentTaskSessionsTable } from "@paperclipai/db";
+import { pluginLogs, agentTaskSessions as agentTaskSessionsTable, labels as labelsTable } from "@paperclipai/db";
 import { eq, and, like, desc } from "drizzle-orm";
 import type {
   HostServices,
@@ -793,6 +793,32 @@ export function buildHostServices(
           params.body,
           {},
         )) as IssueComment;
+      },
+    },
+
+    // Lucitra extension: labels API for plugin use (not in upstream SDK)
+    labels: {
+      async list(params: { companyId: string }) {
+        const companyId = ensureCompanyId(params.companyId);
+        await ensurePluginAvailableForCompany(companyId);
+        const rows = await db.select().from(labelsTable)
+          .where(eq(labelsTable.companyId, companyId))
+          .orderBy(labelsTable.name);
+        return rows;
+      },
+      async create(params: { companyId: string; name: string; color: string }) {
+        const companyId = ensureCompanyId(params.companyId);
+        await ensurePluginAvailableForCompany(companyId);
+        const [created] = await db.insert(labelsTable)
+          .values({ companyId, name: params.name, color: params.color })
+          .onConflictDoNothing()
+          .returning();
+        if (created) return created;
+        // Already exists — fetch it
+        const [existing] = await db.select().from(labelsTable)
+          .where(and(eq(labelsTable.companyId, companyId), eq(labelsTable.name, params.name)))
+          .limit(1);
+        return existing ?? null;
       },
     },
 

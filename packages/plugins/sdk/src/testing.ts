@@ -453,6 +453,11 @@ export function createTestHarness(options: TestHarnessOptions): TestHarness {
         },
       },
     },
+    // Lucitra extension: labels
+    labels: {
+      async list(_companyId: string) { return []; },
+      async create(_companyId: string, _name: string, _color: string) { return null; },
+    },
     agents: {
       async list(input) {
         requireCapability(manifest, capabilitySet, "agents.read");

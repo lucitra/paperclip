@@ -584,6 +584,7 @@ export interface WorkerToHostMethods {
       description?: string;
       priority?: string;
       assigneeAgentId?: string;
+      labelIds?: string[]; // Lucitra extension
     },
     result: Issue,
   ];
@@ -602,6 +603,16 @@ export interface WorkerToHostMethods {
   "issues.createComment": [
     params: { issueId: string; body: string; companyId: string },
     result: IssueComment,
+  ];
+
+  // Labels (Lucitra extension)
+  "labels.list": [
+    params: { companyId: string },
+    result: Array<{ id: string; name: string; color: string; companyId: string }>,
+  ];
+  "labels.create": [
+    params: { companyId: string; name: string; color: string },
+    result: { id: string; name: string; color: string; companyId: string } | null,
   ];
 
   // Issue Documents

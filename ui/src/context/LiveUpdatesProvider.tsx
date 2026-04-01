@@ -66,6 +66,7 @@ function resolveActorLabel(
   }
   if (actorType === "system") return "System";
   if (actorType === "user" && actorId) {
+    if (actorId === "linear-webhook") return "Linear";
     return "Board";
   }
   return "Someone";

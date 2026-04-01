@@ -1384,8 +1384,19 @@ export function linearAuthRoutes(db: Db, config: LinearAuthConfig) {
             .set({ ...patch, updatedAt: new Date() })
             .where(eq(issuesTable.id, paperclipIssueId));
 
-          // Log activity
+          // Log activity with flat field keys for toast rendering
           if (companyId) {
+            const activityDetails: Record<string, unknown> = {
+              source: "linear",
+              fields: changedFields,
+            };
+            // Include flat keys so the UI toast can describe the change
+            if (patch.status) activityDetails.status = patch.status;
+            if (patch.priority) activityDetails.priority = patch.priority;
+            if (patch.title) activityDetails.title = patch.title;
+            if (patch.description !== undefined) activityDetails.description = "updated";
+            if (patch.estimate !== undefined) activityDetails.estimate = patch.estimate;
+
             await logActivity(db, {
               companyId,
               actorType: "user",
@@ -1393,15 +1404,22 @@ export function linearAuthRoutes(db: Db, config: LinearAuthConfig) {
               action: "issue.updated",
               entityType: "issue",
               entityId: paperclipIssueId,
-              details: { source: "linear", fields: changedFields },
+              details: activityDetails,
             });
 
-            // Publish live event so UI updates in real-time
+            // Publish live event so UI updates in real-time + shows toast
             const { publishLiveEvent } = await import("../services/live-events.js");
             publishLiveEvent({
               companyId,
               type: "activity.logged",
-              payload: { entityType: "issue", entityId: paperclipIssueId, action: "issue.updated" },
+              payload: {
+                entityType: "issue",
+                entityId: paperclipIssueId,
+                action: "issue.updated",
+                actorType: "user",
+                actorId: "linear-webhook",
+                details: activityDetails,
+              },
             });
           }
 
@@ -1481,21 +1499,34 @@ export function linearAuthRoutes(db: Db, config: LinearAuthConfig) {
               body: `**${userName || "Linear user"}** (from Linear):\n\n${commentBody}`,
             });
 
+            const commentDetails = {
+              source: "linear",
+              author: userName || "Linear user",
+              bodySnippet: commentBody.slice(0, 120),
+            };
+
             await logActivity(db, {
               companyId,
               actorType: "user",
               actorId: "linear-webhook",
-              action: "comment.created",
+              action: "issue.comment_added",
               entityType: "issue",
               entityId: paperclipIssueId,
-              details: { source: "linear", author: userName || "Linear user" },
+              details: commentDetails,
             });
 
             const { publishLiveEvent } = await import("../services/live-events.js");
             publishLiveEvent({
               companyId,
               type: "activity.logged",
-              payload: { entityType: "issue", entityId: paperclipIssueId, action: "comment.created" },
+              payload: {
+                entityType: "issue",
+                entityId: paperclipIssueId,
+                action: "issue.comment_added",
+                actorType: "user",
+                actorId: "linear-webhook",
+                details: commentDetails,
+              },
             });
 
             console.log(`[linear-webhook] comment bridged to ${issueIdentifier}`);

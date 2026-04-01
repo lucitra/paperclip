@@ -19,6 +19,7 @@
  */
 
 import { fork, type ChildProcess } from "node:child_process";
+import path from "node:path";
 import { EventEmitter } from "node:events";
 import { createInterface, type Interface as ReadlineInterface } from "node:readline";
 import type { PaperclipPluginManifestV1 } from "@paperclipai/shared";
@@ -607,11 +608,20 @@ export function createPluginWorkerHandle(
     // Security: Do NOT spread process.env into the worker. Plugins should only
     // receive a minimal, controlled environment to prevent leaking host
     // secrets (like DATABASE_URL, internal API keys, etc.).
+    // Include the monorepo's node_modules in NODE_PATH so plugin workers
+    // resolve @paperclipai/plugin-sdk from the workspace (which may include
+    // fork-specific extensions like labels and projects write APIs).
+    const repoNodeModules = path.resolve(__dirname, "../../../node_modules");
+    const existingNodePath = process.env.NODE_PATH ?? "";
+    const nodePath = existingNodePath
+      ? `${repoNodeModules}${path.delimiter}${existingNodePath}`
+      : repoNodeModules;
+
     const workerEnv: Record<string, string> = {
       ...options.env,
       HOME: process.env.HOME ?? "",
       PATH: process.env.PATH ?? "",
-      NODE_PATH: process.env.NODE_PATH ?? "",
+      NODE_PATH: nodePath,
       PAPERCLIP_PLUGIN_ID: pluginId,
       NODE_ENV: process.env.NODE_ENV ?? "production",
       TZ: process.env.TZ ?? "UTC",

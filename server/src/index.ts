@@ -797,6 +797,7 @@ export async function startServer(): Promise<StartedServer> {
     logger.warn({ err }, "auto-install of bundled plugins failed (non-fatal)");
   });
 
+
   if (embeddedPostgres && embeddedPostgresStartedByThisProcess) {
     const shutdown = async (signal: "SIGINT" | "SIGTERM") => {
       logger.info({ signal }, "Stopping embedded PostgreSQL");

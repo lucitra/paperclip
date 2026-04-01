@@ -626,6 +626,12 @@ export interface PluginProjectsClient {
    */
   get(projectId: string, companyId: string): Promise<Project | null>;
 
+  /** Create a new project. Requires `projects.create`. Lucitra extension. */
+  create(input: { companyId: string; name: string; description?: string; status?: string; targetDate?: string; color?: string }): Promise<Project>;
+
+  /** Update a project. Requires `projects.update`. Lucitra extension. */
+  update(projectId: string, patch: Record<string, unknown>, companyId: string): Promise<Project>;
+
   /**
    * List all workspaces attached to a project.
    *

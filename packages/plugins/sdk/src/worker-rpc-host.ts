@@ -553,6 +553,22 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
         async getWorkspaceForIssue(issueId: string, companyId: string) {
           return callHost("projects.getWorkspaceForIssue", { issueId, companyId });
         },
+
+        // Lucitra extension
+        async create(input) {
+          return callHost("projects.create", {
+            companyId: input.companyId,
+            name: input.name,
+            description: input.description,
+            status: input.status,
+            targetDate: input.targetDate,
+            color: input.color,
+          });
+        },
+
+        async update(projectId: string, patch: Record<string, unknown>, companyId: string) {
+          return callHost("projects.update", { projectId, patch, companyId });
+        },
       },
 
       companies: {

@@ -314,6 +314,15 @@ export function createTestHarness(options: TestHarnessOptions): TestHarness {
         const workspaces = projectWorkspaces.get(projectId) ?? [];
         return workspaces.find((workspace) => workspace.isPrimary) ?? null;
       },
+      // Lucitra extension
+      async create(input) {
+        requireCapability(manifest, capabilitySet, "projects.create" as any);
+        return { id: `test-${Date.now()}`, ...input } as any;
+      },
+      async update(_projectId, _patch, _companyId) {
+        requireCapability(manifest, capabilitySet, "projects.update" as any);
+        return projects.get(_projectId) as any;
+      },
     },
     companies: {
       async list(input) {

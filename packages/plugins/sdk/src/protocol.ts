@@ -605,6 +605,27 @@ export interface WorkerToHostMethods {
     result: IssueComment,
   ];
 
+  // Projects write (Lucitra extension)
+  "projects.create": [
+    params: {
+      companyId: string;
+      name: string;
+      description?: string;
+      status?: string;
+      targetDate?: string;
+      color?: string;
+    },
+    result: Project,
+  ];
+  "projects.update": [
+    params: {
+      projectId: string;
+      companyId: string;
+      patch: Record<string, unknown>;
+    },
+    result: Project,
+  ];
+
   // Labels (Lucitra extension)
   "labels.list": [
     params: { companyId: string },

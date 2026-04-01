@@ -731,6 +731,25 @@ export function buildHostServices(
         };
       },
 
+      // Lucitra extension: project create/update
+      async create(params: { companyId: string; name: string; description?: string; status?: string; targetDate?: string; color?: string }) {
+        const companyId = ensureCompanyId(params.companyId);
+        await ensurePluginAvailableForCompany(companyId);
+        return (await projects.create(companyId, {
+          name: params.name,
+          description: params.description,
+          status: params.status as any ?? "backlog",
+          targetDate: params.targetDate,
+          color: params.color,
+        })) as Project;
+      },
+      async update(params: { projectId: string; companyId: string; patch: Record<string, unknown> }) {
+        const companyId = ensureCompanyId(params.companyId);
+        await ensurePluginAvailableForCompany(companyId);
+        requireInCompany("Project", await projects.getById(params.projectId), companyId);
+        return (await projects.update(params.projectId, params.patch as any)) as Project;
+      },
+
       async getWorkspaceForIssue(params) {
         const companyId = ensureCompanyId(params.companyId);
         await ensurePluginAvailableForCompany(companyId);

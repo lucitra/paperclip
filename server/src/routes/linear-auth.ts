@@ -1689,10 +1689,75 @@ export function linearAuthRoutes(db: Db, config: LinearAuthConfig) {
         }
       }
 
-      // Handle issue label assignment changes
-      if (type === "Issue" && action === "update" && data.labelIds) {
-        // Linear sends labelIds array when labels change on an issue
-        // We'd need to resolve label names from IDs — skip for now, handled by full sync
+      // Handle issue deletion/archival from Linear → archive in Paperclip
+      if (type === "Issue" && action === "remove" && paperclipIssueId) {
+        const companyIdForDelete = (await db.select({ companyId: issuesTable.companyId })
+          .from(issuesTable).where(eq(issuesTable.id, paperclipIssueId)).limit(1))[0]?.companyId;
+
+        await db.update(issuesTable)
+          .set({ status: "cancelled", hiddenAt: new Date(), updatedAt: new Date() })
+          .where(eq(issuesTable.id, paperclipIssueId));
+
+        if (companyIdForDelete) {
+          await logActivity(db, {
+            companyId: companyIdForDelete,
+            actorType: "user",
+            actorId: "linear-webhook",
+            action: "issue.updated",
+            entityType: "issue",
+            entityId: paperclipIssueId,
+            details: { source: "linear", status: "cancelled", reason: "deleted in Linear" },
+          });
+        }
+        console.log(`[linear-webhook] archived issue (deleted in Linear): ${paperclipIssueId}`);
+      }
+
+      // Handle project deletion from Linear → archive in Paperclip
+      if (type === "Project" && action === "remove") {
+        const projectName = data.name as string | undefined;
+        if (projectName) {
+          const allCompanies = await db.select({ id: companies.id }).from(companies);
+          for (const c of allCompanies) {
+            const [existing] = await db.select().from(projects)
+              .where(and(eq(projects.companyId, c.id), eq(projects.name, projectName)))
+              .limit(1);
+            if (existing) {
+              await db.update(projects)
+                .set({ status: "cancelled", updatedAt: new Date() })
+                .where(eq(projects.id, existing.id));
+
+              await logActivity(db, {
+                companyId: c.id,
+                actorType: "user",
+                actorId: "linear-webhook",
+                action: "project.updated",
+                entityType: "project",
+                entityId: existing.id,
+                details: { source: "linear", status: "cancelled", reason: "deleted in Linear" },
+              });
+              console.log(`[linear-webhook] archived project (deleted in Linear): ${projectName}`);
+            }
+          }
+        }
+      }
+
+      // Handle label deletion from Linear → remove in Paperclip
+      if (type === "IssueLabel" && action === "remove") {
+        const labelName = data.name as string | undefined;
+        if (labelName) {
+          const allCompanies = await db.select({ id: companies.id }).from(companies);
+          for (const c of allCompanies) {
+            const [existing] = await db.select().from(labels)
+              .where(and(eq(labels.companyId, c.id), eq(labels.name, labelName)))
+              .limit(1);
+            if (existing) {
+              // Remove label associations then the label itself
+              await db.delete(issueLabels).where(eq(issueLabels.labelId, existing.id));
+              await db.delete(labels).where(eq(labels.id, existing.id));
+              console.log(`[linear-webhook] deleted label: ${labelName}`);
+            }
+          }
+        }
       }
     } catch (err) {
       console.error("[linear-webhook] error:", err);

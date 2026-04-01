@@ -33,7 +33,7 @@ import { createStorageServiceFromConfig } from "./storage/index.js";
 import { printStartupBanner } from "./startup-banner.js";
 import { getBoardClaimWarningUrl, initializeBoardClaimChallenge } from "./board-claim.js";
 import { maybePersistWorktreeRuntimePorts } from "./worktree-config.js";
-import { plugins } from "@paperclipai/db";
+// plugins import removed — Linear tunnel no longer managed here
 import { DEFAULT_LOCAL_PLUGIN_DIR, pluginLoader } from "./services/plugin-loader.js";
 import { pluginRegistryService } from "./services/plugin-registry.js";
 import { pluginLifecycleManager } from "./services/plugin-lifecycle.js";
@@ -797,58 +797,8 @@ export async function startServer(): Promise<StartedServer> {
     logger.warn({ err }, "auto-install of bundled plugins failed (non-fatal)");
   });
 
-  // Start Linear tunnel if Linear is connected and cloudflared is available
-  if (config.linearOAuthClientId) {
-    void (async () => {
-      try {
-        const { secretService } = await import("./services/index.js");
-        const svc = secretService(db as any);
-        // Find any company with a Linear token
-        const allCompanies = await (db as any).select().from(companies);
-        for (const company of allCompanies) {
-          const linearSecret = await svc.getByName(company.id, "linear-oauth-token");
-          if (linearSecret) {
-            const token = await svc.resolveSecretValue(company.id, linearSecret.id, "latest");
-            // Get teamId from plugin config
-            const [plugin] = await (db as any).select().from(plugins).where(eq(plugins.pluginKey, "paperclip-plugin-linear")).limit(1);
-            let teamId = "";
-            if (plugin) {
-              const { pluginConfig: pluginConfigTable } = await import("@paperclipai/db");
-              const [cfg] = await (db as any).select().from(pluginConfigTable).where(eq(pluginConfigTable.pluginId, plugin.id));
-              teamId = (cfg?.configJson as Record<string, unknown>)?.teamId as string ?? "";
-            }
-            if (token && teamId) {
-              const { startLinearTunnel } = await import("./linear-tunnel.js");
-              await startLinearTunnel({ port: listenPort, linearToken: token, teamId });
-            }
-            break; // Only need one company's token
-          }
-        }
-      } catch (err) {
-        logger.info("[linear-tunnel] skipped (not connected or cloudflared unavailable)");
-      }
-    })();
-  }
-
   if (embeddedPostgres && embeddedPostgresStartedByThisProcess) {
     const shutdown = async (signal: "SIGINT" | "SIGTERM") => {
-      // Stop Linear tunnel and delete webhook
-      try {
-        const { stopLinearTunnel } = await import("./linear-tunnel.js");
-        // Resolve token for webhook cleanup
-        let cleanupToken: string | undefined;
-        try {
-          const { secretService } = await import("./services/index.js");
-          const svc = secretService(db as any);
-          const allCompanies = await (db as any).select().from(companies);
-          for (const c of allCompanies) {
-            const s = await svc.getByName(c.id, "linear-oauth-token");
-            if (s) { cleanupToken = await svc.resolveSecretValue(c.id, s.id, "latest"); break; }
-          }
-        } catch { /* best effort */ }
-        await stopLinearTunnel(cleanupToken);
-      } catch { /* best effort */ }
-
       logger.info({ signal }, "Stopping embedded PostgreSQL");
       try {
         await embeddedPostgres?.stop();

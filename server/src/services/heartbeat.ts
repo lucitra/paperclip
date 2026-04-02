@@ -1740,6 +1740,7 @@ export function heartbeatService(db: Db) {
       intervalSec: Math.max(0, asNumber(heartbeat.intervalSec, 0)),
       wakeOnDemand: asBoolean(heartbeat.wakeOnDemand ?? heartbeat.wakeOnAssignment ?? heartbeat.wakeOnOnDemand ?? heartbeat.wakeOnAutomation, true),
       maxConcurrentRuns: normalizeMaxConcurrentRuns(heartbeat.maxConcurrentRuns),
+      idleAutoPauseAfter: Math.max(0, asNumber(heartbeat.idleAutoPauseAfter, 0)),
     };
   }
 
@@ -1994,6 +1995,24 @@ export function heartbeatService(db: Db) {
     const biller = resolveLedgerBiller(result);
     const ledgerScope = await resolveLedgerScopeForRun(db, agent.companyId, run);
 
+    // Idle circuit breaker: track consecutive idle timer runs atomically via jsonb_set.
+    // A "timer idle" run = timer-triggered, succeeded, low output tokens.
+    const isTimerIdle =
+      run.invocationSource === "timer" &&
+      run.status === "succeeded" &&
+      outputTokens < 2000;
+    const idleCounterUpdate = isTimerIdle
+      ? sql`jsonb_set(
+          COALESCE(${agentRuntimeState.stateJson}::jsonb, '{}'::jsonb),
+          '{consecutiveTimerIdleRuns}',
+          to_jsonb(COALESCE((${agentRuntimeState.stateJson}::jsonb->>'consecutiveTimerIdleRuns')::int, 0) + 1)
+        )`
+      : sql`jsonb_set(
+          COALESCE(${agentRuntimeState.stateJson}::jsonb, '{}'::jsonb),
+          '{consecutiveTimerIdleRuns}',
+          '0'::jsonb
+        )`;
+
     await db
       .update(agentRuntimeState)
       .set({
@@ -2002,6 +2021,7 @@ export function heartbeatService(db: Db) {
         lastRunId: run.id,
         lastRunStatus: run.status,
         lastError: result.errorMessage ?? null,
+        stateJson: idleCounterUpdate,
         totalInputTokens: sql`${agentRuntimeState.totalInputTokens} + ${inputTokens}`,
         totalOutputTokens: sql`${agentRuntimeState.totalOutputTokens} + ${outputTokens}`,
         totalCachedInputTokens: sql`${agentRuntimeState.totalCachedInputTokens} + ${cachedInputTokens}`,
@@ -3973,6 +3993,7 @@ export function heartbeatService(db: Db) {
       let checked = 0;
       let enqueued = 0;
       let skipped = 0;
+      let idleSkipped = 0;
 
       for (const agent of allAgents) {
         if (agent.status === "paused" || agent.status === "terminated" || agent.status === "pending_approval") continue;
@@ -3983,6 +4004,23 @@ export function heartbeatService(db: Db) {
         const baseline = new Date(agent.lastHeartbeatAt ?? agent.createdAt).getTime();
         const elapsedMs = now.getTime() - baseline;
         if (elapsedMs < policy.intervalSec * 1000) continue;
+
+        // Idle circuit breaker: skip timer wakeup if agent has been idle for N consecutive runs.
+        // Event-based wakeups (assignments, mentions) are unaffected and reset the counter.
+        if (policy.idleAutoPauseAfter > 0) {
+          const runtimeState = await getRuntimeState(agent.id);
+          const stateJson = parseObject(runtimeState?.stateJson);
+          const consecutiveIdle = asNumber(stateJson.consecutiveTimerIdleRuns, 0);
+          if (consecutiveIdle >= policy.idleAutoPauseAfter) {
+            logger.debug(
+              { agentId: agent.id, agentName: agent.name, consecutiveIdle, threshold: policy.idleAutoPauseAfter },
+              "idle circuit breaker: skipping timer wakeup",
+            );
+            idleSkipped += 1;
+            skipped += 1;
+            continue;
+          }
+        }
 
         const run = await enqueueWakeup(agent.id, {
           source: "timer",
@@ -4000,7 +4038,7 @@ export function heartbeatService(db: Db) {
         else skipped += 1;
       }
 
-      return { checked, enqueued, skipped };
+      return { checked, enqueued, skipped, idleSkipped };
     },
 
     cancelRun: (runId: string) => cancelRunInternal(runId),

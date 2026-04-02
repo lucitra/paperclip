@@ -49,6 +49,7 @@ import { createPluginWorkerManager } from "./services/plugin-worker-manager.js";
 const BUNDLED_PLUGINS = [
   "@lucitra/paperclip-plugin-linear",
   "@lucitra/paperclip-plugin-chat",
+  "@lucitra/paperclip-plugin-updater",
 ];
 
 async function autoInstallBundledPlugins(_db: import("@paperclipai/db").Db) {

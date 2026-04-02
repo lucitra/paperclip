@@ -385,6 +385,26 @@ function decodeNumericHtmlEntity(digits: string, radix: 16 | 10): string | null 
   }
 }
 
+/** Checks if a comment body contains a plain-text @mention of a multi-word agent name. */
+function containsPlainTextAgentMention(bodyLower: string, agentNameLower: string): boolean {
+  const needle = `@${agentNameLower}`;
+  let index = bodyLower.indexOf(needle);
+
+  while (index !== -1) {
+    const before = index > 0 ? bodyLower[index - 1] : "";
+    const afterIndex = index + needle.length;
+    const after = afterIndex < bodyLower.length ? bodyLower[afterIndex] : "";
+
+    const startsMention = before === "" || /[^a-z0-9_]/.test(before);
+    const endsMention = after === "" || /[\s,!?;:.)\]}>"'`]/.test(after);
+    if (startsMention && endsMention) return true;
+
+    index = bodyLower.indexOf(needle, index + 1);
+  }
+
+  return false;
+}
+
 /** Decodes HTML character references in a raw @mention capture so UI-encoded bodies match agent names. */
 export function normalizeAgentMentionToken(raw: string): string {
   let s = raw.replace(/&#x([0-9a-fA-F]+);/gi, (full, hex: string) => decodeNumericHtmlEntity(hex, 16) ?? full);
@@ -2061,9 +2081,14 @@ export function issueService(db: Db) {
       if (tokens.size === 0 && explicitAgentMentionIds.length === 0) return [];
       const rows = await db.select({ id: agents.id, name: agents.name })
         .from(agents).where(eq(agents.companyId, companyId));
+      const bodyLower = body.toLowerCase();
       const resolved = new Set<string>(explicitAgentMentionIds);
       for (const agent of rows) {
-        if (tokens.has(agent.name.toLowerCase())) {
+        const agentNameLower = agent.name.toLowerCase();
+        if (
+          tokens.has(agentNameLower) ||
+          (agentNameLower.includes(" ") && containsPlainTextAgentMention(bodyLower, agentNameLower))
+        ) {
           resolved.add(agent.id);
         }
       }

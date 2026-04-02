@@ -1,7 +1,9 @@
 import { Router, type Request, type Response } from "express";
 import multer from "multer";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 import type { Db } from "@paperclipai/db";
+import { issueAttachments } from "@paperclipai/db";
 import {
   addIssueCommentSchema,
   createIssueAttachmentMetadataSchema,
@@ -456,11 +458,12 @@ export function issueRoutes(db: Db, storage: StorageService) {
         ? req.query.wakeCommentId.trim()
         : null;
 
-    const [{ project, goal }, ancestors, commentCursor, wakeComment] = await Promise.all([
+    const [{ project, goal }, ancestors, commentCursor, wakeComment, attachments] = await Promise.all([
       resolveIssueProjectAndGoal(issue),
       svc.getAncestors(issue.id),
       svc.getCommentCursor(issue.id),
       wakeCommentId ? svc.getComment(wakeCommentId) : null,
+      db.select().from(issueAttachments).where(eq(issueAttachments.issueId, issue.id)),
     ]);
 
     res.json({
@@ -507,6 +510,14 @@ export function issueRoutes(db: Db, storage: StorageService) {
         wakeComment && wakeComment.issueId === issue.id
           ? wakeComment
           : null,
+      attachments: attachments.map((a) => ({
+        id: a.id,
+        filename: a.originalFilename,
+        contentType: a.contentType,
+        byteSize: a.byteSize,
+        contentPath: `/api/attachments/${a.id}/content`,
+        createdAt: a.createdAt,
+      })),
     });
   });
 

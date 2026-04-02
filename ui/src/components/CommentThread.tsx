@@ -17,6 +17,7 @@ import { OutputFeedbackButtons } from "./OutputFeedbackButtons";
 import { StatusBadge } from "./StatusBadge";
 import { AgentIcon } from "./AgentIconPicker";
 import { formatDateTime } from "../lib/utils";
+import { resolveCommentAuthorIdentity } from "../lib/comment-authors";
 import { restoreSubmittedCommentDraft } from "../lib/comment-submit-draft";
 import { PluginSlotOutlet } from "@/plugins/slots";
 
@@ -56,6 +57,7 @@ interface CommentThreadProps {
     vote: FeedbackVoteValue,
     options?: { allowSharing?: boolean; reason?: string },
   ) => Promise<void>;
+  currentUserId?: string | null;
   onAdd: (body: string, reopen?: boolean, reassignment?: CommentReassignment) => Promise<void>;
   issueStatus?: string;
   agentMap?: Map<string, Agent>;
@@ -147,6 +149,7 @@ function CommentCard({
   feedbackTermsUrl = null,
   onVote,
   voting = false,
+  currentUserId,
   highlightCommentId,
   queued = false,
 }: {
@@ -162,12 +165,14 @@ function CommentCard({
     options?: { allowSharing?: boolean; reason?: string },
   ) => Promise<void>;
   voting?: boolean;
+  currentUserId?: string | null;
   highlightCommentId?: string | null;
   queued?: boolean;
 }) {
   const isHighlighted = highlightCommentId === comment.id;
   const isPending = comment.clientStatus === "pending";
   const isQueued = queued || comment.queueState === "queued" || comment.clientStatus === "queued";
+  const authorIdentity = resolveCommentAuthorIdentity(comment, currentUserId);
 
   return (
     <div
@@ -182,15 +187,15 @@ function CommentCard({
       } ${isPending ? "opacity-80" : ""}`}
     >
       <div className="flex items-center justify-between mb-1">
-        {comment.authorAgentId ? (
-          <Link to={`/agents/${comment.authorAgentId}`} className="hover:underline">
+        {authorIdentity.kind === "agent" && authorIdentity.agentId ? (
+          <Link to={`/agents/${authorIdentity.agentId}`} className="hover:underline">
             <Identity
-              name={agentMap?.get(comment.authorAgentId)?.name ?? comment.authorAgentId.slice(0, 8)}
+              name={agentMap?.get(authorIdentity.agentId)?.name ?? authorIdentity.agentId.slice(0, 8)}
               size="sm"
             />
           </Link>
         ) : (
-          <Identity name="You" size="sm" />
+          <Identity name={authorIdentity.name} size="sm" />
         )}
         <span className="flex items-center gap-1.5">
           {isQueued ? (
@@ -289,6 +294,7 @@ const TimelineList = memo(function TimelineList({
   feedbackTermsUrl = null,
   onVote,
   votingTargetId,
+  currentUserId,
   highlightCommentId,
 }: {
   timeline: TimelineItem[];
@@ -304,6 +310,7 @@ const TimelineList = memo(function TimelineList({
     options?: { allowSharing?: boolean; reason?: string },
   ) => Promise<void>;
   votingTargetId?: string | null;
+  currentUserId?: string | null;
   highlightCommentId?: string | null;
 }) {
   if (timeline.length === 0) {
@@ -355,6 +362,7 @@ const TimelineList = memo(function TimelineList({
             feedbackTermsUrl={feedbackTermsUrl}
             onVote={onVote ? (vote, options) => onVote(comment.id, vote, options) : undefined}
             voting={votingTargetId === comment.id}
+            currentUserId={currentUserId}
             highlightCommentId={highlightCommentId}
           />
         );
@@ -373,6 +381,7 @@ export function CommentThread({
   companyId,
   projectId,
   onVote,
+  currentUserId,
   onAdd,
   agentMap,
   imageUploadHandler,
@@ -565,6 +574,16 @@ export function CommentThread({
         highlightCommentId={highlightCommentId}
         feedbackTermsUrl={feedbackTermsUrl}
       />
+      {timeline.length > 0 ? (
+        <TimelineList
+          timeline={timeline}
+          agentMap={agentMap}
+          companyId={companyId}
+          projectId={projectId}
+          currentUserId={currentUserId}
+          highlightCommentId={highlightCommentId}
+        />
+      ) : null}
 
       {liveRunSlot}
 
@@ -594,6 +613,7 @@ export function CommentThread({
                 agentMap={agentMap}
                 companyId={companyId}
                 projectId={projectId}
+                currentUserId={currentUserId}
                 highlightCommentId={highlightCommentId}
                 queued
               />

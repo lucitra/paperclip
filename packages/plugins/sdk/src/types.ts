@@ -1023,6 +1023,37 @@ export interface PluginGoalsClient {
 }
 
 // ---------------------------------------------------------------------------
+// Plugin management client (Lucitra extension)
+// ---------------------------------------------------------------------------
+
+/**
+ * Client for discovering and managing installed plugins.
+ *
+ * Requires `plugins.read` for list operations and `plugins.upgrade` for
+ * triggering upgrades.
+ *
+ * @see PLUGIN_SPEC.md §15 — Capability Model (Lucitra extension)
+ */
+export interface PluginPluginsClient {
+  /** List installed plugins, optionally filtered by status. */
+  list(options?: { status?: string }): Promise<Array<{
+    id: string;
+    pluginKey: string;
+    packageName: string;
+    version: string;
+    status: string;
+  }>>;
+
+  /** Trigger upgrade for a plugin. Returns old/new version and resulting status. */
+  upgrade(pluginId: string, version?: string): Promise<{
+    oldVersion: string;
+    newVersion: string;
+    status: string;
+    addedCapabilities: string[];
+  }>;
+}
+
+// ---------------------------------------------------------------------------
 // Streaming (worker → UI push channel)
 // ---------------------------------------------------------------------------
 
@@ -1146,6 +1177,9 @@ export interface PluginContext {
     list(companyId: string): Promise<Array<{ id: string; name: string; color: string; companyId: string }>>;
     create(companyId: string, name: string, color: string): Promise<{ id: string; name: string; color: string; companyId: string } | null>;
   };
+
+  /** Discover and manage installed plugins. Requires `plugins.read` / `plugins.upgrade`. Lucitra extension. */
+  plugins: PluginPluginsClient;
 
   /** Read and manage agents. Requires `agents.read` for reads; `agents.pause` / `agents.resume` / `agents.invoke` for write ops. */
   agents: PluginAgentsClient;

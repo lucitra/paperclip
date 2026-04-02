@@ -669,6 +669,16 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
         },
       },
 
+      // Lucitra extension: plugin management API
+      plugins: {
+        async list(options?: { status?: string }) {
+          return callHost("plugins.list" as any, options ?? {});
+        },
+        async upgrade(pluginId: string, version?: string) {
+          return callHost("plugins.upgrade" as any, { pluginId, version });
+        },
+      },
+
       agents: {
         async list(input) {
           return callHost("agents.list", {

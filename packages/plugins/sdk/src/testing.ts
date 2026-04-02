@@ -467,6 +467,13 @@ export function createTestHarness(options: TestHarnessOptions): TestHarness {
       async list(_companyId: string) { return []; },
       async create(_companyId: string, _name: string, _color: string) { return null; },
     },
+    // Lucitra extension: plugin management
+    plugins: {
+      async list(_options?: { status?: string }) { return []; },
+      async upgrade(_pluginId: string, _version?: string) {
+        return { oldVersion: "0.0.0", newVersion: "0.0.0", status: "ready", addedCapabilities: [] };
+      },
+    },
     agents: {
       async list(input) {
         requireCapability(manifest, capabilitySet, "agents.read");

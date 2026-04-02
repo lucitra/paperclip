@@ -28,6 +28,7 @@ import { pluginStateStore } from "./plugin-state-store.js";
 import { createPluginSecretsHandler } from "./plugin-secrets-handler.js";
 import { logActivity } from "./activity-log.js";
 import type { PluginEventBus } from "./plugin-event-bus.js";
+import type { PluginLifecycleManager } from "./plugin-lifecycle.js";
 import { lookup as dnsLookup } from "node:dns/promises";
 import type { IncomingMessage, RequestOptions as HttpRequestOptions } from "node:http";
 import { request as httpRequest } from "node:http";
@@ -442,6 +443,7 @@ export function buildHostServices(
   pluginKey: string,
   eventBus: PluginEventBus,
   notifyWorker?: (method: string, params: unknown) => void,
+  lifecycleManager?: PluginLifecycleManager,
 ): HostServices & { dispose(): void } {
   const registry = pluginRegistryService(db);
   const stateStore = pluginStateStore(db);
@@ -838,6 +840,43 @@ export function buildHostServices(
           .where(and(eq(labelsTable.companyId, companyId), eq(labelsTable.name, params.name)))
           .limit(1);
         return existing ?? null;
+      },
+    },
+
+    // Lucitra extension: plugin management API
+    plugins: {
+      async list(params: { status?: string }) {
+        const rows = params.status
+          ? await registry.listByStatus(params.status as any)
+          : await registry.listInstalled();
+        return rows.map((r: any) => ({
+          id: r.id,
+          pluginKey: r.pluginKey,
+          packageName: r.packageName,
+          version: r.version,
+          status: r.status,
+        }));
+      },
+      async upgrade(params: { pluginId: string; version?: string }) {
+        if (!lifecycleManager) {
+          throw new Error("Plugin upgrade is not available — lifecycle manager not configured");
+        }
+        const before = await registry.getById(params.pluginId);
+        if (!before) throw new Error(`Plugin not found: ${params.pluginId}`);
+        const oldVersion = before.version;
+        const result = await lifecycleManager.upgrade(params.pluginId, params.version);
+        // Compute added capabilities by comparing old vs new manifest
+        const oldCaps = before.manifestJson?.capabilities ?? [];
+        const newCaps = result.manifestJson?.capabilities ?? [];
+        const addedCapabilities = (newCaps as string[]).filter(
+          (cap: string) => !(oldCaps as string[]).includes(cap),
+        );
+        return {
+          oldVersion,
+          newVersion: result.version,
+          status: result.status,
+          addedCapabilities,
+        };
       },
     },
 

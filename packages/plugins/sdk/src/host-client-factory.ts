@@ -173,6 +173,12 @@ export interface HostServices {
     create(params: WorkerToHostMethods["labels.create"][0]): Promise<WorkerToHostMethods["labels.create"][1]>;
   };
 
+  /** Lucitra extension: plugin management API. */
+  plugins: {
+    list(params: WorkerToHostMethods["plugins.list"][0]): Promise<WorkerToHostMethods["plugins.list"][1]>;
+    upgrade(params: WorkerToHostMethods["plugins.upgrade"][0]): Promise<WorkerToHostMethods["plugins.upgrade"][1]>;
+  };
+
   /** Provides `issues.documents.list`, `issues.documents.get`, `issues.documents.upsert`, `issues.documents.delete`. */
   issueDocuments: {
     list(params: WorkerToHostMethods["issues.documents.list"][0]): Promise<WorkerToHostMethods["issues.documents.list"][1]>;
@@ -321,6 +327,10 @@ const METHOD_CAPABILITY_MAP: Record<WorkerToHostMethodName, PluginCapability | n
   // Labels (Lucitra extension)
   "labels.list": "labels.read",
   "labels.create": "labels.create",
+
+  // Plugins (Lucitra extension)
+  "plugins.list": "plugins.read",
+  "plugins.upgrade": "plugins.upgrade",
 
   // Issue Documents
   "issues.documents.list": "issue.documents.read",
@@ -527,6 +537,14 @@ export function createHostClientHandlers(
     }),
     "labels.create": gated("labels.create", async (params) => {
       return services.labels.create(params);
+    }),
+
+    // Plugins (Lucitra extension)
+    "plugins.list": gated("plugins.list", async (params) => {
+      return services.plugins.list(params);
+    }),
+    "plugins.upgrade": gated("plugins.upgrade", async (params) => {
+      return services.plugins.upgrade(params);
     }),
 
     // Issue Documents

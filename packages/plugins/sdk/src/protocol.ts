@@ -636,6 +636,27 @@ export interface WorkerToHostMethods {
     result: { id: string; name: string; color: string; companyId: string } | null,
   ];
 
+  // Plugins (Lucitra extension)
+  "plugins.list": [
+    params: { status?: string },
+    result: Array<{
+      id: string;
+      pluginKey: string;
+      packageName: string;
+      version: string;
+      status: string;
+    }>,
+  ];
+  "plugins.upgrade": [
+    params: { pluginId: string; version?: string },
+    result: {
+      oldVersion: string;
+      newVersion: string;
+      status: string;
+      addedCapabilities: string[];
+    },
+  ];
+
   // Issue Documents
   "issues.documents.list": [
     params: { issueId: string; companyId: string },

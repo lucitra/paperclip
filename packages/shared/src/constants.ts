@@ -453,6 +453,9 @@ export const PLUGIN_CAPABILITIES = [
   "labels.create",
   "projects.create",
   "projects.update",
+  // Plugin management (Lucitra extension)
+  "plugins.read",
+  "plugins.upgrade",
   // Plugin State
   "plugin.state.read",
   "plugin.state.write",

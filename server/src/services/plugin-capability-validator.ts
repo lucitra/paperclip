@@ -69,6 +69,10 @@ const OPERATION_CAPABILITIES: Record<string, readonly PluginCapability[]> = {
   "activity.log": ["activity.log.write"],
   "metrics.write": ["metrics.write"],
 
+  // Plugin management operations (Lucitra extension)
+  "plugins.list": ["plugins.read"],
+  "plugins.upgrade": ["plugins.upgrade"],
+
   // Plugin state operations
   "plugin.state.get": ["plugin.state.read"],
   "plugin.state.list": ["plugin.state.read"],

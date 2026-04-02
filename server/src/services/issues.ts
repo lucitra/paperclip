@@ -6,7 +6,9 @@ import {
   assets,
   companies,
   companyMemberships,
+  costEvents,
   documents,
+  financeEvents,
   goals,
   heartbeatRuns,
   executionWorkspaces,
@@ -1367,6 +1369,14 @@ export function issueService(db: Db) {
           .select({ documentId: issueDocuments.documentId })
           .from(issueDocuments)
           .where(eq(issueDocuments.issueId, id));
+
+        // Clean up FK references that don't use CASCADE or SET NULL
+        await tx.delete(issueComments).where(eq(issueComments.issueId, id));
+        await tx.delete(issueReadStates).where(eq(issueReadStates.issueId, id));
+        await tx.delete(issueInboxArchives).where(eq(issueInboxArchives.issueId, id));
+        await tx.update(financeEvents).set({ issueId: null }).where(eq(financeEvents.issueId, id));
+        await tx.update(costEvents).set({ issueId: null }).where(eq(costEvents.issueId, id));
+        await tx.update(issues).set({ parentId: null }).where(eq(issues.parentId, id));
 
         const removedIssue = await tx
           .delete(issues)

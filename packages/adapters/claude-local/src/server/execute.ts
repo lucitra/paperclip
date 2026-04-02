@@ -27,6 +27,7 @@ import {
   describeClaudeFailure,
   detectClaudeLoginRequired,
   isClaudeMaxTurnsResult,
+  isClaudeSilentFailure,
   isClaudeUnknownSessionError,
   isClaudeQuotaExhausted,
 } from "./parse.js";
@@ -553,6 +554,16 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       } as Record<string, unknown>)
       : null;
     const clearSessionForMaxTurns = isClaudeMaxTurnsResult(parsed);
+    const resolvedSummary = parsedStream.summary || asString(parsed.result, "");
+
+    // Only check for silent failure when exit code indicates success.
+    let silentFailure: { reason: string } | null = null;
+    if ((proc.exitCode ?? 0) === 0) {
+      const check = isClaudeSilentFailure(parsed, resolvedSummary);
+      if (check.detected) {
+        silentFailure = { reason: check.reason! };
+      }
+    }
 
     return {
       exitCode: proc.exitCode,
@@ -578,7 +589,8 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       billingType,
       costUsd: parsedStream.costUsd ?? asNumber(parsed.total_cost_usd, 0),
       resultJson: parsed,
-      summary: parsedStream.summary || asString(parsed.result, ""),
+      summary: resolvedSummary,
+      silentFailure,
       clearSession: clearSessionForMaxTurns || Boolean(opts.clearSessionOnMissingSession && !resolvedSessionId),
     };
   };

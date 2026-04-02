@@ -742,6 +742,11 @@ export function OnboardingWizard() {
 
   async function handleStep3Next() {
     if (!createdCompanyId) return;
+    // Guard against duplicate project creation on back-navigation
+    if (createdProjectId) {
+      setStep(4);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {

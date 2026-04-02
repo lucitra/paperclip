@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { stat, readdir, readFile } from "node:fs/promises";
+import { stat, readdir, readFile, realpath } from "node:fs/promises";
 import { join } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -123,18 +123,27 @@ export function workspaceScanRoutes() {
       return;
     }
 
-    const resolved = cwd.startsWith("~")
-      ? cwd.replace("~", process.env.HOME ?? "")
+    const home = process.env.HOME ?? "/";
+    const expanded = cwd.startsWith("~")
+      ? cwd.replace("~", home)
       : cwd;
 
+    let resolved: string;
     try {
-      const s = await stat(resolved);
+      const s = await stat(expanded);
       if (!s.isDirectory()) {
         res.status(400).json({ error: "Path is not a directory" });
         return;
       }
+      resolved = await realpath(expanded);
     } catch {
       res.status(400).json({ error: "Directory does not exist" });
+      return;
+    }
+
+    // Restrict to paths under $HOME to prevent arbitrary filesystem reads
+    if (!resolved.startsWith(home)) {
+      res.status(403).json({ error: "Path must be within your home directory" });
       return;
     }
 

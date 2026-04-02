@@ -28,6 +28,7 @@ import {
   detectClaudeLoginRequired,
   isClaudeMaxTurnsResult,
   isClaudeUnknownSessionError,
+  isClaudeQuotaExhausted,
 } from "./parse.js";
 import { resolveClaudeDesiredSkillNames } from "./skills.js";
 
@@ -561,7 +562,11 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
         (proc.exitCode ?? 0) === 0
           ? null
           : describeClaudeFailure(parsed) ?? `Claude exited with code ${proc.exitCode ?? -1}`,
-      errorCode: loginMeta.requiresLogin ? "claude_auth_required" : null,
+      errorCode: loginMeta.requiresLogin
+        ? "claude_auth_required"
+        : isClaudeQuotaExhausted(parsed)
+          ? "provider_quota_exhausted"
+          : null,
       errorMeta,
       usage,
       sessionId: resolvedSessionId,

@@ -1809,6 +1809,7 @@ export function heartbeatService(db: Db) {
   async function finalizeAgentStatus(
     agentId: string,
     outcome: "succeeded" | "failed" | "cancelled" | "timed_out",
+    opts?: { errorCode?: string | null },
   ) {
     const existing = await getAgent(agentId);
     if (!existing) return;
@@ -1820,10 +1821,13 @@ export function heartbeatService(db: Db) {
     const isFirstHeartbeat = !existing.lastHeartbeatAt;
 
     const runningCount = await countRunningRunsForAgent(agentId);
+    // Provider quota exhaustion is a transient, self-recovering condition —
+    // keep the agent idle so the dashboard doesn't show a spurious error.
+    const recoverable = opts?.errorCode === "provider_quota_exhausted";
     const nextStatus =
       runningCount > 0
         ? "running"
-        : outcome === "succeeded" || outcome === "cancelled"
+        : outcome === "succeeded" || outcome === "cancelled" || recoverable
           ? "idle"
           : "error";
 
@@ -2873,7 +2877,9 @@ export function heartbeatService(db: Db) {
           }
         }
       }
-      await finalizeAgentStatus(agent.id, outcome);
+      await finalizeAgentStatus(agent.id, outcome, {
+        errorCode: adapterResult.errorCode ?? null,
+      });
     } catch (err) {
       const message = redactCurrentUserText(
         err instanceof Error ? err.message : "Unknown adapter failure",

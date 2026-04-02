@@ -97,7 +97,8 @@ test.describe("Onboarding wizard", () => {
     await taskTitleInput.clear();
     await taskTitleInput.fill(TASK_TITLE);
 
-    await page.getByRole("button", { name: "Launch" }).click();
+    // Use data-slot to distinguish the submit button from the progress tab
+    await page.locator('button[data-slot="button"]', { hasText: "Launch" }).click();
 
     await expect(page).toHaveURL(/\/issues\//, { timeout: 10_000 });
 

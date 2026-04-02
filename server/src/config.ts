@@ -70,9 +70,12 @@ export interface Config {
   storageS3Endpoint: string | undefined;
   storageS3Prefix: string;
   storageS3ForcePathStyle: boolean;
+  feedbackExportBackendUrl: string | undefined;
+  feedbackExportBackendToken: string | undefined;
   heartbeatSchedulerEnabled: boolean;
   heartbeatSchedulerIntervalMs: number;
   companyDeletionEnabled: boolean;
+  telemetryEnabled: boolean;
   linearOAuthClientId: string;
   linearOAuthClientSecret: string;
   linearOAuthRedirectUri: string;
@@ -123,6 +126,14 @@ export function loadConfig(): Config {
     process.env.PAPERCLIP_STORAGE_S3_FORCE_PATH_STYLE !== undefined
       ? process.env.PAPERCLIP_STORAGE_S3_FORCE_PATH_STYLE === "true"
       : (fileStorage?.s3?.forcePathStyle ?? false);
+  const feedbackExportBackendUrl =
+    process.env.PAPERCLIP_FEEDBACK_EXPORT_BACKEND_URL?.trim() ||
+    process.env.PAPERCLIP_TELEMETRY_BACKEND_URL?.trim() ||
+    undefined;
+  const feedbackExportBackendToken =
+    process.env.PAPERCLIP_FEEDBACK_EXPORT_BACKEND_TOKEN?.trim() ||
+    process.env.PAPERCLIP_TELEMETRY_BACKEND_TOKEN?.trim() ||
+    undefined;
 
   const deploymentModeFromEnvRaw = process.env.PAPERCLIP_DEPLOYMENT_MODE;
   const deploymentModeFromEnv =
@@ -255,9 +266,12 @@ export function loadConfig(): Config {
     storageS3Endpoint,
     storageS3Prefix,
     storageS3ForcePathStyle,
+    feedbackExportBackendUrl,
+    feedbackExportBackendToken,
     heartbeatSchedulerEnabled: process.env.HEARTBEAT_SCHEDULER_ENABLED !== "false",
     heartbeatSchedulerIntervalMs: Math.max(10000, Number(process.env.HEARTBEAT_SCHEDULER_INTERVAL_MS) || 30000),
     companyDeletionEnabled,
+    telemetryEnabled: fileConfig?.telemetry?.enabled ?? true,
     linearOAuthClientId: process.env.PAPERCLIP_LINEAR_CLIENT_ID ?? "",
     linearOAuthClientSecret: process.env.PAPERCLIP_LINEAR_CLIENT_SECRET ?? "",
     linearOAuthRedirectUri:

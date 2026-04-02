@@ -88,6 +88,68 @@ async function autoInstallBundledPlugins(_db: import("@paperclipai/db").Db) {
     }
   }
 
+  // Auto-upgrade bundled plugins if a newer version is available on npm
+  try {
+    const listRes3 = await fetch(`${baseUrl}/api/plugins`);
+    if (listRes3.ok) {
+      const allPlugins = (await listRes3.json()) as Array<{
+        id: string; packageName: string; version: string; status: string;
+      }>;
+      for (const pkg of BUNDLED_PLUGINS) {
+        const installed = allPlugins.find((p) => p.packageName === pkg && p.status === "ready");
+        if (!installed) continue;
+
+        try {
+          // Check npm for latest version (abbreviated metadata for speed)
+          const npmRes = await fetch(
+            `https://registry.npmjs.org/${encodeURIComponent(pkg)}`,
+            { headers: { Accept: "application/vnd.npm.install-v1+json" } },
+          );
+          if (!npmRes.ok) continue;
+          const npmData = (await npmRes.json()) as { "dist-tags"?: { latest?: string } };
+          const latest = npmData["dist-tags"]?.latest;
+          if (!latest || latest === installed.version) continue;
+
+          // Simple semver comparison: split and compare numerically
+          const parse = (v: string) => v.replace(/^v/, "").split("-")[0].split(".").map(Number);
+          const cur = parse(installed.version);
+          const lat = parse(latest);
+          let isNewer = false;
+          for (let i = 0; i < 3; i++) {
+            if ((lat[i] ?? 0) > (cur[i] ?? 0)) { isNewer = true; break; }
+            if ((lat[i] ?? 0) < (cur[i] ?? 0)) break;
+          }
+          if (!isNewer) continue;
+
+          logger.info(
+            { package: pkg, current: installed.version, latest },
+            "auto-upgrading bundled plugin",
+          );
+          const upgradeRes = await fetch(`${baseUrl}/api/plugins/${installed.id}/upgrade`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ version: latest }),
+          });
+          if (upgradeRes.ok) {
+            logger.info({ package: pkg, latest }, "bundled plugin auto-upgraded");
+          } else {
+            const err = (await upgradeRes.json()) as { error?: string };
+            // Capability escalation is expected — log but don't fail
+            if (err.error?.includes("capability")) {
+              logger.info({ package: pkg, latest }, "auto-upgrade pending capability approval");
+            } else {
+              logger.warn({ package: pkg, error: err.error }, "auto-upgrade failed");
+            }
+          }
+        } catch (err) {
+          logger.warn({ package: pkg, err }, "failed to check/upgrade bundled plugin");
+        }
+      }
+    }
+  } catch (err) {
+    logger.warn({ err }, "auto-upgrade check failed (non-fatal)");
+  }
+
   // For dev: if npm install failed for chat plugin, try local path fallback
   {
     const listRes2 = await fetch(`${baseUrl}/api/plugins`).catch(() => null);

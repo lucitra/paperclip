@@ -8,7 +8,7 @@ import type {
   IssueComment,
 } from "@paperclipai/shared";
 import { Button } from "@/components/ui/button";
-import { Check, Copy, Paperclip } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, Copy, Paperclip } from "lucide-react";
 import { Identity } from "./Identity";
 import { InlineEntitySelector, type InlineEntityOption } from "./InlineEntitySelector";
 import { MarkdownBody } from "./MarkdownBody";
@@ -313,13 +313,31 @@ const TimelineList = memo(function TimelineList({
   currentUserId?: string | null;
   highlightCommentId?: string | null;
 }) {
+  const COLLAPSE_THRESHOLD = 10;
+  const VISIBLE_WHEN_COLLAPSED = 3;
+  const [expanded, setExpanded] = useState(false);
+
+  const collapsible = timeline.length > COLLAPSE_THRESHOLD;
+  const hiddenCount = collapsible && !expanded ? timeline.length - VISIBLE_WHEN_COLLAPSED : 0;
+  const visibleItems = collapsible && !expanded ? timeline.slice(-VISIBLE_WHEN_COLLAPSED) : timeline;
+
   if (timeline.length === 0) {
     return <p className="text-sm text-muted-foreground">No comments or runs yet.</p>;
   }
 
   return (
     <div className="space-y-3">
-      {timeline.map((item) => {
+      {collapsible && !expanded && (
+        <button
+          type="button"
+          className="flex w-full items-center justify-center gap-1.5 rounded-md border border-border/50 bg-accent/20 px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-accent/40 hover:text-foreground"
+          onClick={() => setExpanded(true)}
+        >
+          <ChevronDown className="h-3.5 w-3.5" />
+          Show {hiddenCount} earlier {hiddenCount === 1 ? "item" : "items"}
+        </button>
+      )}
+      {visibleItems.map((item) => {
         if (item.kind === "run") {
           const run = item.run;
           return (
@@ -367,6 +385,16 @@ const TimelineList = memo(function TimelineList({
           />
         );
       })}
+      {collapsible && expanded && (
+        <button
+          type="button"
+          className="flex w-full items-center justify-center gap-1.5 rounded-md border border-border/50 bg-accent/20 px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-accent/40 hover:text-foreground"
+          onClick={() => setExpanded(false)}
+        >
+          <ChevronUp className="h-3.5 w-3.5" />
+          Show less
+        </button>
+      )}
     </div>
   );
 });

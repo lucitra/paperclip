@@ -28,6 +28,7 @@ import { instanceSettingsRoutes } from "./routes/instance-settings.js";
 import { llmRoutes } from "./routes/llms.js";
 import { assetRoutes } from "./routes/assets.js";
 import { accessRoutes } from "./routes/access.js";
+import { workspaceScanRoutes } from "./routes/workspace-scan.js";
 import { loadConfig } from "./config.js";
 import { pluginRoutes } from "./routes/plugins.js";
 import { pluginUiStaticRoutes } from "./routes/plugin-ui-static.js";
@@ -273,6 +274,7 @@ ${error ? "" : "setTimeout(function(){window.close()},2000)"}
       { workerManager, streamBus },
     ),
   );
+  api.use(workspaceScanRoutes());
   api.use(
     accessRoutes(db, {
       deploymentMode: opts.deploymentMode,

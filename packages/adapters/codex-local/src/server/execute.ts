@@ -357,7 +357,6 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   }
   if (agentHome) {
     env.AGENT_HOME = agentHome;
-    env.HOME = agentHome;
   }
   if (workspaceHints.length > 0) {
     env.PAPERCLIP_WORKSPACES_JSON = JSON.stringify(workspaceHints);

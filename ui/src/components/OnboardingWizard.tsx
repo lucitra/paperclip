@@ -748,14 +748,20 @@ export function OnboardingWizard() {
         for (const o of Object.values(agentOverrides)) {
           if (o.adapterType) uniqueAdapters.add(o.adapterType);
         }
-        for (const at of uniqueAdapters) {
-          const localTypes = ["claude_local", "codex_local", "gemini_local", "hermes_local", "opencode_local", "pi_local", "cursor"];
-          if (!localTypes.includes(at)) continue;
-          if (at === adapterType && adapterEnvResult) continue; // already tested
-          const result = await agentsApi.testEnvironment(createdCompanyId, at, { adapterConfig: {} });
-          if (result.status === "fail") {
-            setError(`Adapter environment check failed for ${at}: ${result.checks?.map((c) => c.message).join(", ") ?? "unknown error"}`);
-            return;
+        const localTypes = ["claude_local", "codex_local", "gemini_local", "hermes_local", "opencode_local", "pi_local", "cursor"];
+        const adaptersToTest = [...uniqueAdapters].filter((at) => localTypes.includes(at) && !(at === adapterType && adapterEnvResult));
+        if (adaptersToTest.length > 0) {
+          setAdapterEnvLoading(true);
+          try {
+            for (const at of adaptersToTest) {
+              const result = await agentsApi.testEnvironment(createdCompanyId, at, { adapterConfig: {} });
+              if (result.status === "fail") {
+                setError(`Adapter environment check failed for ${at}: ${result.checks?.map((c) => c.message).join(", ") ?? "unknown error"}`);
+                return;
+              }
+            }
+          } finally {
+            setAdapterEnvLoading(false);
           }
         }
       } else if (isLocalAdapter) {

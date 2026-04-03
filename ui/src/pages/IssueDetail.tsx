@@ -35,6 +35,7 @@ import { useProjectOrder } from "../hooks/useProjectOrder";
 import { relativeTime, cn, formatTokens, visibleRunCostUsd } from "../lib/utils";
 import { InlineEditor } from "../components/InlineEditor";
 import { CommentThread } from "../components/CommentThread";
+import { ChatView } from "../components/ChatView";
 import { IssueDocumentsSection } from "../components/IssueDocumentsSection";
 import { IssueProperties } from "../components/IssueProperties";
 import { IssueWorkspaceCard } from "../components/IssueWorkspaceCard";
@@ -64,6 +65,7 @@ import {
   EyeOff,
   Hexagon,
   ListTree,
+  MessageCircle,
   MessageSquare,
   MoreHorizontal,
   Paperclip,
@@ -1498,6 +1500,10 @@ export function IssueDetail() {
 
       <Tabs value={detailTab} onValueChange={setDetailTab} className="space-y-3">
         <TabsList variant="line" className="w-full justify-start gap-1">
+          <TabsTrigger value="chat" className="gap-1.5">
+            <MessageCircle className="h-3.5 w-3.5" />
+            Chat
+          </TabsTrigger>
           <TabsTrigger value="comments" className="gap-1.5">
             <MessageSquare className="h-3.5 w-3.5" />
             Comments
@@ -1517,6 +1523,20 @@ export function IssueDetail() {
           ))}
         </TabsList>
 
+        <TabsContent value="chat">
+          <ChatView
+            issueId={issueId!}
+            companyId={issue.companyId}
+            comments={timelineComments}
+            queuedComments={queuedComments}
+            currentUserId={currentUserId}
+            agentMap={agentMap}
+            onSend={async (body) => {
+              await addComment.mutateAsync({ body });
+            }}
+          />
+        </TabsContent>
+
         <TabsContent value="comments">
           <CommentThread
             comments={timelineComments}
@@ -1531,7 +1551,6 @@ export function IssueDetail() {
             currentUserId={currentUserId}
             issueStatus={issue.status}
             agentMap={agentMap}
-            currentUserId={currentUserId}
             draftKey={`paperclip:issue-comment-draft:${issue.id}`}
             enableReassign
             reassignOptions={commentReassignOptions}

@@ -53,6 +53,9 @@ import { initTelemetry, getTelemetryClient } from "./telemetry.js";
 const BUNDLED_PLUGINS = [
   "@lucitra/paperclip-plugin-linear",
   "@lucitra/paperclip-plugin-chat",
+  "@lucitra/paperclip-plugin-secrets",
+  "@lucitra/paperclip-plugin-updater",
+  "paperclip-plugin-slack",
 ];
 
 async function autoInstallBundledPlugins(_db: import("@paperclipai/db").Db) {

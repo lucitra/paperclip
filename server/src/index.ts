@@ -709,29 +709,37 @@ export async function startServer(): Promise<StartedServer> {
     serverPort: listenPort,
     databasePort: resolvedEmbeddedPostgresPort,
   });
-  // Symlink the workspace SDK (with fork extensions) into the plugins directory.
-  // A symlink survives npm installs — npm won't overwrite it with the upstream SDK.
-  function symlinkWorkspaceSdk() {
+  // Copy workspace SDK dist (with fork extensions) to the plugins directory.
+  // Must be called after any npm install that might overwrite the SDK.
+  function copyWorkspaceSdk() {
     try {
       const pluginsSdkDir = path.join(os.homedir(), ".paperclip", "plugins", "node_modules", "@paperclipai", "plugin-sdk");
       const thisDir = path.dirname(new URL(import.meta.url).pathname);
-      const workspaceSdkDir = path.resolve(thisDir, "../../packages/plugins/sdk");
-      if (!fs.existsSync(workspaceSdkDir)) return;
+      const workspaceSdkDist = path.resolve(thisDir, "../../packages/plugins/sdk/dist");
+      const workspaceSdkPkg = path.resolve(thisDir, "../../packages/plugins/sdk/package.json");
+      if (!fs.existsSync(workspaceSdkDist)) return;
 
-      // Ensure parent directory exists
-      fs.mkdirSync(path.dirname(pluginsSdkDir), { recursive: true });
-
-      // Remove existing (file, dir, or symlink) and replace with symlink
-      if (fs.existsSync(pluginsSdkDir) || fs.lstatSync(pluginsSdkDir).isSymbolicLink()) {
-        fs.rmSync(pluginsSdkDir, { recursive: true, force: true });
+      // If it's a symlink (from a previous version), remove it
+      if (fs.existsSync(pluginsSdkDir) && fs.lstatSync(pluginsSdkDir).isSymbolicLink()) {
+        fs.rmSync(pluginsSdkDir, { force: true });
       }
-      fs.symlinkSync(workspaceSdkDir, pluginsSdkDir, "junction");
-      logger.info("Symlinked workspace plugin SDK to local plugins directory");
+
+      // Remove existing dist and replace with fresh copy
+      const destDist = path.join(pluginsSdkDir, "dist");
+      if (fs.existsSync(destDist)) {
+        fs.rmSync(destDist, { recursive: true, force: true });
+      }
+      fs.mkdirSync(pluginsSdkDir, { recursive: true });
+      fs.cpSync(workspaceSdkDist, destDist, { recursive: true });
+      if (fs.existsSync(workspaceSdkPkg)) {
+        fs.cpSync(workspaceSdkPkg, path.join(pluginsSdkDir, "package.json"), { force: true });
+      }
+      logger.info("Copied workspace plugin SDK dist to local plugins directory");
     } catch (err) {
-      logger.warn({ err }, "Failed to symlink workspace SDK (non-fatal)");
+      logger.warn({ err }, "Failed to copy workspace SDK (non-fatal)");
     }
   }
-  symlinkWorkspaceSdk();
+  copyWorkspaceSdk();
 
   const uiMode = config.uiDevMiddleware ? "vite-dev" : config.serveUi ? "static" : "none";
   const storageService = createStorageServiceFromConfig(config);
@@ -941,8 +949,8 @@ export async function startServer(): Promise<StartedServer> {
 
   // Auto-install bundled plugins (idempotent — skips if already installed)
   void autoInstallBundledPlugins(db as any).then(() => {
-    // Re-symlink after plugin installs in case npm install replaced the symlink.
-    symlinkWorkspaceSdk();
+    // Re-copy workspace SDK after plugin installs — npm install pulls the upstream SDK.
+    copyWorkspaceSdk();
   }).catch((err) => {
     logger.warn({ err }, "auto-install of bundled plugins failed (non-fatal)");
   });

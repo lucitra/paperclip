@@ -28,7 +28,13 @@ import { createApp } from "./app.js";
 import { loadConfig } from "./config.js";
 import { logger } from "./middleware/logger.js";
 import { setupLiveEventsWebSocketServer } from "./realtime/live-events-ws.js";
-import { heartbeatService, reconcilePersistedRuntimeServicesOnStartup, routineService } from "./services/index.js";
+import {
+  feedbackService,
+  heartbeatService,
+  reconcilePersistedRuntimeServicesOnStartup,
+  routineService,
+} from "./services/index.js";
+import { createFeedbackTraceShareClientFromConfig } from "./services/feedback-share-client.js";
 import { createStorageServiceFromConfig } from "./storage/index.js";
 import { printStartupBanner } from "./startup-banner.js";
 import { getBoardClaimWarningUrl, initializeBoardClaimChallenge } from "./board-claim.js";
@@ -38,6 +44,7 @@ import { DEFAULT_LOCAL_PLUGIN_DIR, pluginLoader } from "./services/plugin-loader
 import { pluginRegistryService } from "./services/plugin-registry.js";
 import { pluginLifecycleManager } from "./services/plugin-lifecycle.js";
 import { createPluginWorkerManager } from "./services/plugin-worker-manager.js";
+import { initTelemetry, getTelemetryClient } from "./telemetry.js";
 
 /**
  * Bundled plugins that should be auto-installed on startup.
@@ -149,6 +156,7 @@ export interface StartedServer {
 
 export async function startServer(): Promise<StartedServer> {
   let config = loadConfig();
+  initTelemetry({ enabled: config.telemetryEnabled });
   if (process.env.PAPERCLIP_SECRETS_PROVIDER === undefined) {
     process.env.PAPERCLIP_SECRETS_PROVIDER = config.secretsProvider;
   }
@@ -592,10 +600,14 @@ export async function startServer(): Promise<StartedServer> {
   });
   const uiMode = config.uiDevMiddleware ? "vite-dev" : config.serveUi ? "static" : "none";
   const storageService = createStorageServiceFromConfig(config);
+  const feedback = feedbackService(db as any, {
+    shareClient: createFeedbackTraceShareClientFromConfig(config) ?? undefined,
+  });
   const app = await createApp(db as any, {
     uiMode,
     serverPort: listenPort,
     storageService,
+    feedbackExportService: feedback,
     deploymentMode: config.deploymentMode,
     deploymentExposure: config.deploymentExposure,
     allowedHostnames: config.allowedHostnames,
@@ -830,12 +842,18 @@ export async function startServer(): Promise<StartedServer> {
     })();
   }
 
-  if (embeddedPostgres && embeddedPostgresStartedByThisProcess) {
+  {
     const shutdown = async (signal: "SIGINT" | "SIGTERM") => {
+      // Flush telemetry
+      const telemetryClient = getTelemetryClient();
+      if (telemetryClient) {
+        telemetryClient.stop();
+        await telemetryClient.flush();
+      }
+
       // Stop Linear tunnel and delete webhook
       try {
         const { stopLinearTunnel } = await import("./linear-tunnel.js");
-        // Resolve token for webhook cleanup
         let cleanupToken: string | undefined;
         try {
           const { secretService } = await import("./services/index.js");
@@ -849,16 +867,18 @@ export async function startServer(): Promise<StartedServer> {
         await stopLinearTunnel(cleanupToken);
       } catch { /* best effort */ }
 
-      logger.info({ signal }, "Stopping embedded PostgreSQL");
-      try {
-        await embeddedPostgres?.stop();
-      } catch (err) {
-        logger.error({ err }, "Failed to stop embedded PostgreSQL cleanly");
-      } finally {
-        process.exit(0);
+      if (embeddedPostgres && embeddedPostgresStartedByThisProcess) {
+        logger.info({ signal }, "Stopping embedded PostgreSQL");
+        try {
+          await embeddedPostgres?.stop();
+        } catch (err) {
+          logger.error({ err }, "Failed to stop embedded PostgreSQL cleanly");
+        }
       }
+
+      process.exit(0);
     };
-  
+
     process.once("SIGINT", () => {
       void shutdown("SIGINT");
     });

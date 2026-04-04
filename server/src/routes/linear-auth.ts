@@ -745,7 +745,7 @@ export function linearAuthRoutes(db: Db, config: LinearAuthConfig) {
               } else {
                 const [createdCycle] = await db.insert(cycles).values({
                   companyId,
-                  name: li.cycle.name,
+                  name: li.cycle.name ?? `Cycle ${li.cycle.number ?? ""}`.trim(),
                   description: li.cycle.description,
                   number: li.cycle.number,
                   startsAt: li.cycle.startsAt,
@@ -1120,7 +1120,7 @@ export function linearAuthRoutes(db: Db, config: LinearAuthConfig) {
               cycleId = existingCycle.id;
               // Update cycle details
               await db.update(cycles).set({
-                name: li.cycle.name,
+                name: li.cycle.name ?? `Cycle ${li.cycle.number ?? ""}`.trim(),
                 number: li.cycle.number,
                 startsAt: li.cycle.startsAt,
                 endsAt: li.cycle.endsAt,
@@ -1130,7 +1130,7 @@ export function linearAuthRoutes(db: Db, config: LinearAuthConfig) {
             } else {
               const [createdCycle] = await db.insert(cycles).values({
                 companyId,
-                name: li.cycle.name,
+                name: li.cycle.name ?? `Cycle ${li.cycle.number ?? ""}`.trim(),
                 description: li.cycle.description,
                 number: li.cycle.number,
                 startsAt: li.cycle.startsAt,

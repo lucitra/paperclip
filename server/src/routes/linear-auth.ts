@@ -11,7 +11,7 @@ import { Router } from "express";
 import crypto from "node:crypto";
 import type { Db } from "@paperclipai/db";
 import { plugins, pluginConfig, companies, labels, issueLabels, projects, cycles, issueCycles } from "@paperclipai/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, not } from "drizzle-orm";
 import type { SecretProvider } from "@paperclipai/shared";
 import { assertBoard, assertCompanyAccess } from "./authz.js";
 import { logActivity, secretService } from "../services/index.js";
@@ -907,6 +907,21 @@ export function linearAuthRoutes(db: Db, config: LinearAuthConfig) {
           }
         }
         console.log(`[linear-sync] synced ${projectMap.size} projects from Linear`);
+
+        // Reconcile: mark Paperclip projects that no longer exist in Linear as cancelled
+        const linearProjectNames = new Set((projData.data?.projects?.nodes ?? []).map((p) => p.name));
+        const allPaperclipProjects = await db
+          .select()
+          .from(projects)
+          .where(and(eq(projects.companyId, companyId), not(eq(projects.status, "cancelled"))));
+        for (const pp of allPaperclipProjects) {
+          if (!linearProjectNames.has(pp.name)) {
+            await db.update(projects)
+              .set({ status: "cancelled", updatedAt: new Date() })
+              .where(eq(projects.id, pp.id));
+            console.log(`[linear-sync] cancelled project (deleted in Linear): ${pp.name}`);
+          }
+        }
       }
 
       // Pre-fetch/create label cache

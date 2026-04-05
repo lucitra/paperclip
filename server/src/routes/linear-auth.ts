@@ -914,12 +914,50 @@ export function linearAuthRoutes(db: Db, config: LinearAuthConfig) {
           .select()
           .from(projects)
           .where(and(eq(projects.companyId, companyId), not(eq(projects.status, "cancelled"))));
+
+        // Fetch team ID for pushing new projects to Linear
+        let syncTeamId = "";
+        try {
+          const teamsRes = await fetch("https://api.linear.app/graphql", {
+            method: "POST",
+            headers: { Authorization: token, "Content-Type": "application/json" },
+            body: JSON.stringify({ query: "{ teams { nodes { id } } }" }),
+          });
+          if (teamsRes.ok) {
+            const td = (await teamsRes.json()) as { data?: { teams?: { nodes?: Array<{ id: string }> } } };
+            syncTeamId = td.data?.teams?.nodes?.[0]?.id ?? "";
+          }
+        } catch { /* non-critical */ }
+
+        const paperclipToLinearStatus: Record<string, string> = {
+          backlog: "planned", active: "started", completed: "completed",
+          cancelled: "canceled", paused: "paused",
+        };
+
         for (const pp of allPaperclipProjects) {
           if (!linearProjectNames.has(pp.name)) {
-            await db.update(projects)
-              .set({ status: "cancelled", updatedAt: new Date() })
-              .where(eq(projects.id, pp.id));
-            console.log(`[linear-sync] cancelled project (deleted in Linear): ${pp.name}`);
+            // Project exists in Paperclip but not Linear — push to Linear
+            if (syncTeamId) {
+              try {
+                const linearState = paperclipToLinearStatus[pp.status ?? "backlog"] ?? "planned";
+                const createRes = await fetch("https://api.linear.app/graphql", {
+                  method: "POST",
+                  headers: { Authorization: token, "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    query: `mutation($input: ProjectCreateInput!) { projectCreate(input: $input) { success project { id name } } }`,
+                    variables: { input: { name: pp.name, description: pp.description ?? undefined, teamIds: [syncTeamId], state: linearState } },
+                  }),
+                });
+                if (createRes.ok) {
+                  const result = (await createRes.json()) as { data?: { projectCreate?: { success: boolean; project?: { id: string; name: string } } } };
+                  if (result.data?.projectCreate?.success) {
+                    console.log(`[linear-sync] pushed project to Linear: ${pp.name}`);
+                  }
+                }
+              } catch (err) {
+                console.warn(`[linear-sync] failed to push project ${pp.name} to Linear:`, err);
+              }
+            }
           }
         }
       }

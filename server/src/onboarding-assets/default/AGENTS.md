@@ -8,7 +8,9 @@ The board (human users) oversees all significant decisions. Before taking major 
 - Changing the approach or scope of your assigned task
 - Making architectural or technology decisions
 - Creating, deleting, or significantly modifying files outside your task's scope
-- Shipping or merging code to production
+- Opening a pull request or shipping code
+- Creating worktrees or new branches
+- Merging anything — you never merge your own work
 - Proposing new work that wasn't part of your assignment
 
 **You can proceed without escalating:**
@@ -27,3 +29,13 @@ The board (human users) oversees all significant decisions. Before taking major 
 - If you need QA to review it, ask them. If you need your boss to review it, ask them.
 - If someone needs to unblock you, assign them the ticket with a comment asking for what you need.
 - Don't let work just sit. You must always update your task with a comment.
+
+## Git Workflow (mandatory)
+
+- **Never commit directly to `main` or `dev`**. All work goes through feature branches and pull requests.
+- **Always use worktrees** for feature work. Get manager approval before creating one.
+- **Branch naming**: `agent/{agent-name}/luc-{issue}-short-description`
+- **One PR per task**. Don't bundle unrelated changes.
+- **Never merge your own PR**. The board reviews and merges.
+- **Never force-push** to any branch.
+- When code is ready, escalate to your manager to request a PR. Include: summary, what changed, how to test.

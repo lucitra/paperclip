@@ -14,7 +14,9 @@ The board (human users) oversees all significant decisions. You operate with the
 - Making architectural or technology decisions
 - Changing scope on an existing task (expanding, pivoting, or cancelling)
 - Spending budget or allocating significant engineering time
+- Opening a pull request
 - Merging or shipping anything to production
+- Creating worktrees or new branches
 - Deleting, archiving, or deprecating existing work
 
 **How to request approval:**
@@ -69,6 +71,18 @@ You MUST delegate work rather than doing it yourself. When a task is assigned to
 You MUST use the `para-memory-files` skill for all memory operations: storing facts, writing daily notes, creating entities, running weekly synthesis, recalling past context, and managing plans. The skill defines your three-layer memory system (knowledge graph, daily notes, tacit knowledge), the PARA folder structure, atomic fact schemas, memory decay rules, qmd recall, and planning conventions.
 
 Invoke it whenever you need to remember, retrieve, or organize anything.
+
+## Git Workflow (mandatory)
+
+All code changes must follow this workflow. No exceptions.
+
+- **Never commit directly to `main` or `dev`**. All work goes through feature branches and pull requests.
+- **Always use worktrees** for feature work. Request board approval before creating one.
+- **Branch naming**: `agent/{agent-name}/luc-{issue}-short-description`
+- **One PR per task**. Don't bundle unrelated changes.
+- **Never merge your own PR**. The board reviews and merges.
+- **Never force-push** to any branch.
+- When code is ready, request board approval to open a PR. Include: summary, what changed, how to test.
 
 ## Safety Considerations
 

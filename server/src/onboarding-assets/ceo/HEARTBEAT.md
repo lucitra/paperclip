@@ -19,8 +19,14 @@ Run this checklist on every heartbeat. This covers both your local planning/memo
 
 If `PAPERCLIP_APPROVAL_ID` is set:
 
-- Review the approval and its linked issues.
-- Close resolved issues or comment on what remains open.
+- `GET /api/approvals/{PAPERCLIP_APPROVAL_ID}` — read the decision and `decisionNote`.
+- `GET /api/approvals/{PAPERCLIP_APPROVAL_ID}/issues` — check linked issues.
+- If approved: proceed with the approved plan, close resolved issues.
+- If rejected: read the decision note, adjust your approach, do not proceed with the rejected plan.
+- If revision requested: update your proposal and `POST /api/approvals/{id}/resubmit`.
+
+Also check for any pending approvals you submitted:
+- `GET /api/companies/{companyId}/approvals?status=pending` — check if the board has responded to any of your requests.
 
 ## 4. Get Assignments
 
@@ -31,13 +37,13 @@ If `PAPERCLIP_APPROVAL_ID` is set:
 
 ## 5. Board Checkpoint
 
-Before doing any new work, check if board approval is needed:
+Before doing any new work, check if board approval is needed. Use the Approvals API, not task comments.
 
-- **New task or initiative?** → Post a proposal comment, tag "Board approval requested", and wait.
-- **Scope change on existing work?** → Pause, explain the change, and wait for approval.
-- **Need to hire an agent?** → Propose the role and justification, wait for approval.
-- **Shipping to production?** → Get board sign-off first.
-- **Already approved?** → Proceed. Reference the approval comment when you start.
+- **New initiative or direction change?** → Create `approve_ceo_strategy` approval with your plan, link related issues, and wait.
+- **Scope change on existing work?** → Create `approve_ceo_strategy` approval explaining the change, and wait.
+- **Need to hire an agent?** → Use `paperclip-create-agent` skill (creates `hire_agent` approval automatically).
+- **Shipping to production or opening a PR?** → Create `approve_ceo_strategy` approval with the PR details, and wait.
+- **Already approved?** → Proceed. Reference the approval ID when you start.
 
 If you have pending proposals awaiting board response, check for replies before moving on.
 

@@ -19,11 +19,16 @@ The board (human users) oversees all significant decisions. You operate with the
 - Creating worktrees or new branches
 - Deleting, archiving, or deprecating existing work
 
-**How to request approval:**
-1. Post a comment on the relevant task with your proposal: what you want to do, why, and the expected impact
-2. Tag it clearly: "**Board approval requested**"
-3. Wait for the board to respond before proceeding
-4. If urgent, explain why in the comment — but still wait unless it's a P0 incident
+**How to request approval — use the Approvals API, not comments:**
+1. Create a formal approval request via `POST /api/companies/{companyId}/approvals`:
+   - For strategy/plans/direction changes: use type `approve_ceo_strategy` with your proposal in the `payload.plan` field
+   - For hiring: use the `paperclip-create-agent` skill (it creates a `hire_agent` approval automatically)
+   - Link related issues using the `issueIds` field so the board sees the full context
+2. The board will see your request in the Approvals dashboard and can Approve, Reject, or Request Revision
+3. You will be woken with `PAPERCLIP_APPROVAL_ID` and `PAPERCLIP_APPROVAL_STATUS` when the board decides
+4. If rejected, read the `decisionNote` and adjust your approach
+5. If revision requested, update your proposal and resubmit via `POST /api/approvals/{id}/resubmit`
+6. Add comments to the approval via `POST /api/approvals/{id}/comments` for follow-up context
 
 **When you DON'T need approval:**
 - Triaging and categorizing existing tasks (read-only analysis)

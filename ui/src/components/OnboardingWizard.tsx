@@ -966,7 +966,11 @@ export function OnboardingWizard() {
   }
 
   async function handleStep4Next() {
-    // Always go to Launch — Linear step is optional (user can click the tab)
+    if (linearAvailable) {
+      setStep(5);
+      return;
+    }
+    // No Linear available — skip to Launch
     setLoading(true);
     try {
       await fetchIssuesForLaunch();
@@ -2525,7 +2529,7 @@ export function OnboardingWizard() {
                       variant="ghost"
                       size="sm"
                       onClick={() => {
-                        const prev = step === 6 ? 4 : step - 1;
+                        const prev = step === 6 ? (linearAvailable ? 5 : 4) : step - 1;
                         setStep(prev as Step);
                       }}
                       disabled={loading}

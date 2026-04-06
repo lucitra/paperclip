@@ -29,6 +29,7 @@ import { validate } from "../middleware/validate.js";
 import {
   accessService,
   agentService,
+  approvalService,
   executionWorkspaceService,
   feedbackService,
   goalService,
@@ -64,6 +65,7 @@ export function issueRoutes(db: Db, storage: StorageService) {
   const agentsSvc = agentService(db);
   const projectsSvc = projectService(db);
   const goalsSvc = goalService(db);
+  const approvalsSvc = approvalService(db);
   const issueApprovalsSvc = issueApprovalService(db);
   const executionWorkspacesSvc = executionWorkspaceService(db);
   const workProductsSvc = workProductService(db);
@@ -1204,6 +1206,63 @@ export function issueRoutes(db: Db, storage: StorageService) {
         const actorAgent = await agentsSvc.getById(actor.agentId);
         if (actorAgent) {
           trackAgentTaskCompleted(tc, { agentRole: actorAgent.role });
+        }
+      }
+    }
+
+    // Auto-create approval when an agent moves an issue to in_review
+    if (
+      issue.status === "in_review" &&
+      existing.status !== "in_review" &&
+      actor.actorType === "agent" &&
+      actor.agentId
+    ) {
+      const existingApprovals = await issueApprovalsSvc.listApprovalsForIssue(issue.id);
+      const hasPendingApproval = existingApprovals.some(
+        (a: { status: string }) => a.status === "pending" || a.status === "revision_requested",
+      );
+      if (!hasPendingApproval) {
+        const approval = await approvalsSvc.create(issue.companyId, {
+          type: "approve_ceo_strategy",
+          requestedByAgentId: actor.agentId,
+          payload: {
+            issueId: issue.id,
+            issueIdentifier: issue.identifier,
+            issueTitle: issue.title,
+            plan: `Agent moved ${issue.identifier} to review. See issue comments and documents for details.`,
+          },
+          requestedByUserId: null,
+          status: "pending",
+          decisionNote: null,
+          decidedByUserId: null,
+          decidedAt: null,
+          updatedAt: new Date(),
+        });
+        if (approval) {
+          await issueApprovalsSvc.linkManyForApproval(approval.id, [issue.id], {
+            agentId: actor.agentId,
+            userId: null,
+          });
+          await logActivity(db, {
+            companyId: issue.companyId,
+            actorType: actor.actorType,
+            actorId: actor.actorId,
+            agentId: actor.agentId,
+            runId: actor.runId,
+            action: "approval.created",
+            entityType: "approval",
+            entityId: approval.id,
+            details: {
+              type: approval.type,
+              issueIds: [issue.id],
+              source: "auto_in_review",
+              issueIdentifier: issue.identifier,
+            },
+          });
+          logger.info(
+            { approvalId: approval.id, issueId: issue.id, agentId: actor.agentId },
+            "auto-created approval for in_review status transition",
+          );
         }
       }
     }

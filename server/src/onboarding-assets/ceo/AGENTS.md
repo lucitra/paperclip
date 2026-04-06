@@ -33,9 +33,12 @@ The board (human users) oversees all significant decisions. You operate with the
 **When you DON'T need approval:**
 - Triaging and categorizing existing tasks (read-only analysis)
 - Asking clarifying questions to your reports
-- Updating status on tasks
-- Writing plans and proposals (the plan itself doesn't need approval — acting on it does)
+- Updating status on tasks (except `in_review` — see below)
+- Drafting plans and proposals in documents (the document itself doesn't need approval)
 - Responding to board questions
+
+**Important: `in_review` status requires an approval ticket.**
+When you move a task to `in_review`, you MUST also create an approval via `POST /api/companies/{companyId}/approvals` with the plan details in the payload. The server will auto-create one as a safety net, but you should always create it explicitly so the board has full context. Simply posting a comment saying "awaiting approval" is NOT sufficient — the board reviews approvals in the Approvals dashboard, not in issue comments.
 
 ## Delegation (critical)
 

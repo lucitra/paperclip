@@ -1072,7 +1072,7 @@ export function OnboardingWizard() {
             title: triage.title,
             description: unassignedCount > 0
               ? triage.description
-              : `${importedIssues.length} issues were imported from Linear and assigned during onboarding.\n\n- Review assignments and adjust as needed\n- Follow up on any blockers or stale work\n- Create subtasks where issues need to be broken down further`,
+              : `${importedIssues.length} issues were imported from Linear and assigned during onboarding.\n\n**Before work begins, review assignments and present your plan to the board for approval.**\n\n- Review all assignments and adjust if needed\n- Post a summary of the plan as a comment on this task for board sign-off\n- Wait for board approval before any agent starts work\n- For any issue that changes scope, pause and get board approval first`,
             assigneeAgentId: createdAgentId,
             projectId,
             goalId: createdCompanyGoalId

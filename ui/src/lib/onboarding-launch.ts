@@ -3,13 +3,18 @@ import type { WorkspaceScanResult } from "../api/workspace";
 
 export const ONBOARDING_PROJECT_NAME = "Onboarding";
 
-export const DEFAULT_TASK_TITLE = "Hire your first engineer and create a hiring plan";
+export const DEFAULT_TASK_TITLE = "Review the backlog and propose a plan for board approval";
 
-export const DEFAULT_TASK_DESCRIPTION = `You are the CEO. You set the direction for the company.
+export const DEFAULT_TASK_DESCRIPTION = `You are the CEO. The board oversees all major decisions.
 
-- hire a founding engineer
-- write a hiring plan
-- break the roadmap into concrete tasks and start delegating work`;
+**Before starting any work, present a plan to the board for approval.**
+
+- Review the current backlog and company goals
+- For each potential initiative, write a brief summary: what it is, why it matters, estimated effort
+- Post your proposed priority list as a comment on this task for board review
+- Wait for board approval before delegating or starting any work
+- Once approved, break initiatives into tasks and delegate — but request board sign-off on any task that changes scope, architecture, or budget
+- Hire agents only after the board approves the hiring plan`;
 
 export function buildContextualTaskDescription(
   scan: WorkspaceScanResult | null,
@@ -42,14 +47,18 @@ export function buildContextualTaskDescription(
 
   lines.push(
     "",
+    "**Before starting any work, present a plan to the board for approval.**",
+    "",
     "- Review the codebase and create an initial technical assessment",
-    "- Break the roadmap into concrete tasks based on the actual code",
-    "- Delegate work to your team",
+    "- Propose a prioritized roadmap as a comment on this task for board review",
+    "- Wait for board approval before delegating or starting any work",
+    "- Once approved, break initiatives into tasks and delegate — but request board sign-off on any task that changes scope, architecture, or budget",
+    "- Hire agents only after the board approves the hiring plan",
   );
 
   const title = scan.projectName
-    ? `Review ${scan.projectName} and create a technical roadmap`
-    : "Review the codebase and create a technical roadmap";
+    ? `Review ${scan.projectName} and propose a roadmap for board approval`
+    : "Review the codebase and propose a roadmap for board approval";
 
   return { title, description: lines.join("\n") };
 }
@@ -78,27 +87,39 @@ export function selectDefaultCompanyGoalId(goals: Goal[]): string | null {
 
 export function buildCeoTriageTask(issueCount: number, hasCto: boolean) {
   return {
-    title: "Triage and delegate imported issues",
+    title: "Triage imported issues and propose a plan for board approval",
     description: `${issueCount} issues were imported from Linear during onboarding.
 
-- Review each issue and determine the right department
-- ${hasCto ? "Delegate technical issues to the CTO — they will assign to engineers" : "Hire a CTO and delegate technical issues to them"}
-- Assign marketing/growth issues to the CMO (or hire one)
-- Delegate everything else using your best judgment
-- Follow up on any blockers or stale work`,
+**Before starting any work, present a triage plan to the board for approval.**
+
+- Review each imported issue and categorize by department and priority
+- Post a proposed triage plan as a comment on this task: which issues to pursue, which to defer, and why
+- Wait for board approval before delegating or starting any work
+- Once approved:
+  - ${hasCto ? "Delegate technical issues to the CTO — they will assign to engineers" : "Hire a CTO and delegate technical issues to them"}
+  - Assign marketing/growth issues to the CMO (or hire one)
+  - Delegate everything else using your best judgment
+- For any issue that changes scope or requires significant effort, get board sign-off first
+- Hire agents only after the board approves the hiring plan`,
   };
 }
 
 export function buildCtoKickoffTask(issueCount: number) {
   return {
-    title: "Review technical issues and assign to engineers",
+    title: "Review technical issues and propose assignments for board approval",
     description: `${issueCount} issues were imported from Linear. The CEO will delegate technical issues to you.
 
-- Review each assigned issue for clarity and scope
-- Break large issues into subtasks if needed
-- Assign work to engineers on your team (hire if needed)
-- Prioritize based on dependencies and impact
-- Flag any blockers or unclear requirements back to the CEO`,
+**Before starting any work, present your technical plan to the board for approval.**
+
+- Review each assigned issue for clarity, scope, and feasibility
+- Post a proposed plan as a comment: priority order, estimated effort, and suggested assignments
+- Wait for board approval before assigning work or hiring engineers
+- Once approved:
+  - Break large issues into subtasks
+  - Assign work to engineers on your team
+  - Prioritize based on dependencies and impact
+- For any issue that grows in scope or requires architectural decisions, pause and get board sign-off
+- Flag blockers or unclear requirements to the CEO immediately`,
   };
 }
 

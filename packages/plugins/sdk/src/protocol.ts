@@ -654,7 +654,7 @@ export interface WorkerToHostMethods {
     result: IssueComment[],
   ];
   "issues.createComment": [
-    params: { issueId: string; body: string; companyId: string },
+    params: { issueId: string; body: string; companyId: string; authorAgentId?: string },
     result: IssueComment,
   ];
 

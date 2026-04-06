@@ -1568,10 +1568,32 @@ export function linearAuthRoutes(db: Db, config: LinearAuthConfig) {
           };
           const status = projectState ? (linearStatusMap[projectState] ?? "backlog") : undefined;
 
-          const allCompanies = await db.select({ id: companies.id }).from(companies);
-          for (const c of allCompanies) {
+          // Find the company linked to this Linear workspace
+          const { pluginState: pluginStateTable } = await import("@paperclipai/db");
+          const [linkedPlugin] = await db
+            .select()
+            .from(plugins)
+            .where(eq(plugins.pluginKey, "paperclip-plugin-linear"))
+            .limit(1);
+          let linkedCompanyId: string | null = null;
+          if (linkedPlugin) {
+            const [stateRow] = await db
+              .select()
+              .from(pluginStateTable)
+              .where(and(
+                eq(pluginStateTable.pluginId, linkedPlugin.id),
+                eq(pluginStateTable.stateKey, "company-id"),
+              ))
+              .limit(1);
+            if (stateRow?.valueJson) {
+              linkedCompanyId = JSON.parse(stateRow.valueJson as string);
+            }
+          }
+          if (!linkedCompanyId) {
+            console.warn("[linear-webhook] no linked company found for project sync, skipping");
+          } else {
             const [existing] = await db.select().from(projects)
-              .where(and(eq(projects.companyId, c.id), eq(projects.name, projectName)))
+              .where(and(eq(projects.companyId, linkedCompanyId), eq(projects.name, projectName)))
               .limit(1);
 
             if (existing) {
@@ -1582,7 +1604,7 @@ export function linearAuthRoutes(db: Db, config: LinearAuthConfig) {
               await db.update(projects).set(patch).where(eq(projects.id, existing.id));
 
               await logActivity(db, {
-                companyId: c.id,
+                companyId: linkedCompanyId,
                 actorType: "user",
                 actorId: "linear-webhook",
                 action: "project.updated",
@@ -1593,7 +1615,7 @@ export function linearAuthRoutes(db: Db, config: LinearAuthConfig) {
               console.log(`[linear-webhook] updated project: ${projectName}`);
             } else {
               const [created] = await db.insert(projects).values({
-                companyId: c.id,
+                companyId: linkedCompanyId,
                 name: projectName,
                 description: projectDesc,
                 status: status ?? "backlog",
@@ -1602,7 +1624,7 @@ export function linearAuthRoutes(db: Db, config: LinearAuthConfig) {
 
               if (created) {
                 await logActivity(db, {
-                  companyId: c.id,
+                  companyId: linkedCompanyId,
                   actorType: "user",
                   actorId: "linear-webhook",
                   action: "project.created",
@@ -1622,15 +1644,35 @@ export function linearAuthRoutes(db: Db, config: LinearAuthConfig) {
         const labelName = data.name as string;
         const labelColor = data.color as string ?? "#6366f1";
         if (labelName) {
-          const allCompanies = await db.select({ id: companies.id }).from(companies);
-          for (const c of allCompanies) {
+          // Find the company linked to this Linear workspace
+          const { pluginState: pluginStateTable2 } = await import("@paperclipai/db");
+          const [linkedPlugin2] = await db
+            .select()
+            .from(plugins)
+            .where(eq(plugins.pluginKey, "paperclip-plugin-linear"))
+            .limit(1);
+          let labelCompanyId: string | null = null;
+          if (linkedPlugin2) {
+            const [stateRow] = await db
+              .select()
+              .from(pluginStateTable2)
+              .where(and(
+                eq(pluginStateTable2.pluginId, linkedPlugin2.id),
+                eq(pluginStateTable2.stateKey, "company-id"),
+              ))
+              .limit(1);
+            if (stateRow?.valueJson) {
+              labelCompanyId = JSON.parse(stateRow.valueJson as string);
+            }
+          }
+          if (labelCompanyId) {
             const [existing] = await db.select().from(labels)
-              .where(and(eq(labels.companyId, c.id), eq(labels.name, labelName)))
+              .where(and(eq(labels.companyId, labelCompanyId), eq(labels.name, labelName)))
               .limit(1);
             if (existing) {
               await db.update(labels).set({ color: labelColor, updatedAt: new Date() }).where(eq(labels.id, existing.id));
             } else {
-              await db.insert(labels).values({ companyId: c.id, name: labelName, color: labelColor }).onConflictDoNothing();
+              await db.insert(labels).values({ companyId: labelCompanyId, name: labelName, color: labelColor }).onConflictDoNothing();
               console.log(`[linear-webhook] created label: ${labelName}`);
             }
           }

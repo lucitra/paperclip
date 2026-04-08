@@ -1197,7 +1197,8 @@ export function linearAuthRoutes(db: Db, config: LinearAuthConfig) {
     }
   });
 
-  // POST /api/auth/linear/configure — update prefix and counter
+  // POST /api/auth/linear/configure — update prefix, counter, and optionally
+  // rebind the Linear plugin to a different team (used by the team picker).
   router.post("/configure", async (req, res) => {
     assertBoard(req);
     const companyId = req.query.companyId as string;
@@ -1207,7 +1208,11 @@ export function linearAuthRoutes(db: Db, config: LinearAuthConfig) {
     }
     assertCompanyAccess(req, companyId);
 
-    const { prefix, startAt } = req.body as { prefix?: string; startAt?: number };
+    const { prefix, startAt, teamId } = req.body as {
+      prefix?: string;
+      startAt?: number;
+      teamId?: string;
+    };
     const updates: Record<string, unknown> = { updatedAt: new Date() };
 
     if (prefix && typeof prefix === "string") {
@@ -1222,10 +1227,79 @@ export function linearAuthRoutes(db: Db, config: LinearAuthConfig) {
     }
 
     await db.update(companies).set(updates).where(eq(companies.id, companyId));
+
+    // If the caller supplied a teamId, rebind the plugin config to point at
+    // the new team and re-register the Linear webhook for it. This is what
+    // the plugin's team picker calls after createTeam / configure.
+    if (teamId && typeof teamId === "string") {
+      try {
+        const [plugin] = await db
+          .select()
+          .from(plugins)
+          .where(eq(plugins.pluginKey, "paperclip-plugin-linear"))
+          .limit(1);
+
+        if (plugin) {
+          const [existingConfig] = await db
+            .select()
+            .from(pluginConfig)
+            .where(eq(pluginConfig.pluginId, plugin.id))
+            .limit(1);
+
+          const baseConfig = (existingConfig?.configJson ?? {}) as Record<string, unknown>;
+          const nextConfig = { ...baseConfig, teamId };
+
+          if (existingConfig) {
+            await db
+              .update(pluginConfig)
+              .set({ configJson: nextConfig, updatedAt: new Date() })
+              .where(eq(pluginConfig.pluginId, plugin.id));
+          } else {
+            await db.insert(pluginConfig).values({
+              pluginId: plugin.id,
+              configJson: nextConfig,
+            });
+          }
+
+          // Pull the live token from the secret store and re-register the
+          // webhook for the new team. Best-effort — log and continue on
+          // failure so the prefix/counter update still succeeds.
+          try {
+            const secret = await svc.getByName(companyId, LINEAR_SECRET_NAME);
+            const tokenValue = secret
+              ? await svc.resolveSecretValue(companyId, secret.id, "latest")
+              : null;
+            if (tokenValue) {
+              const { getTunnelUrl, startLinearTunnel, registerWebhookWithToken } =
+                await import("../linear-tunnel.js");
+              const existingTunnel = getTunnelUrl();
+              if (existingTunnel) {
+                void registerWebhookWithToken(existingTunnel, tokenValue, teamId);
+              } else {
+                const port =
+                  process.env.PAPERCLIP_LISTEN_PORT || process.env.PORT || "3100";
+                void startLinearTunnel({
+                  port: Number(port),
+                  linearToken: tokenValue,
+                  teamId,
+                });
+              }
+              console.log(`[linear-auth] rebound plugin to team ${teamId}`);
+            }
+          } catch (err) {
+            console.warn("[linear-auth] could not rebind webhook for new team:", err);
+          }
+        }
+      } catch (err) {
+        console.warn("[linear-auth] could not update plugin config for new team:", err);
+      }
+    }
+
     const [updated] = await db.select().from(companies).where(eq(companies.id, companyId));
     res.json({
       issuePrefix: updated.issuePrefix,
       issueCounter: updated.issueCounter,
+      teamId: teamId ?? undefined,
     });
   });
 

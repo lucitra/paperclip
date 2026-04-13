@@ -14,11 +14,12 @@ import {
   LayoutDashboard,
   FolderOpen,
   Trash2,
+  GitBranch,
 } from "lucide-react";
 import { useWorkspace } from "../context/WorkspaceContext";
 
 export function WorkspaceLandingPage() {
-  const { selected, cwd, clearWorkspace } = useWorkspace();
+  const { selected, cwd, branch, clearWorkspace, toggleGitPanel } = useWorkspace();
   const navigate = useNavigate();
 
   function openSearch() {
@@ -76,6 +77,12 @@ export function WorkspaceLandingPage() {
           shortcut="⌘ D"
           onClick={() => navigate("/dashboard")}
         />
+        <WorkspaceAction
+          icon={GitBranch}
+          label="Git Changes"
+          shortcut="⌘ G"
+          onClick={toggleGitPanel}
+        />
       </div>
 
       {/* Workspace info + delete */}
@@ -85,10 +92,10 @@ export function WorkspaceLandingPage() {
             <span className="font-medium text-foreground">{selected.workspace.name}</span>
             {" · "}
             <span className="font-mono">{selected.cwd}</span>
-            {selected.workspace.repoRef && (
+            {branch && (
               <>
                 {" · "}
-                <span className="font-mono">{selected.workspace.repoRef}</span>
+                <span className="font-mono">{branch}</span>
               </>
             )}
           </div>

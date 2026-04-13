@@ -7,6 +7,8 @@ import { Sidebar } from "./Sidebar";
 import { InstanceSidebar } from "./InstanceSidebar";
 import { BreadcrumbBar } from "./BreadcrumbBar";
 import { PropertiesPanel } from "./PropertiesPanel";
+import { WorkspacePanel } from "./WorkspacePanel";
+import { useWorkspace } from "../context/WorkspaceContext";
 import { CommandPalette } from "./CommandPalette";
 import { NewIssueDialog } from "./NewIssueDialog";
 import { NewProjectDialog } from "./NewProjectDialog";
@@ -67,6 +69,7 @@ export function Layout() {
     setSelectedCompanyId,
   } = useCompany();
   const { theme, toggleTheme } = useTheme();
+  const { selected, gitPanelOpen, toggleGitPanel } = useWorkspace();
   const { companyPrefix } = useParams<{ companyPrefix: string }>();
   const navigate = useNavigate();
   const location = useLocation();
@@ -476,6 +479,9 @@ export function Layout() {
               )}
             </main>
             <PropertiesPanel />
+            {gitPanelOpen && selected && /\/(workspace|terminal|plugins\/)/.test(location.pathname) && (
+              <WorkspacePanel onClose={toggleGitPanel} />
+            )}
           </div>
         </div>
       </div>

@@ -151,4 +151,8 @@ export const queryKeys = {
   adapters: {
     all: ["adapters"] as const,
   },
+  git: {
+    status: (workspaceId: string) => ["git", "status", workspaceId] as const,
+    diff: (workspaceId: string, path: string, staged: boolean) => ["git", "diff", workspaceId, path, staged] as const,
+  },
 };

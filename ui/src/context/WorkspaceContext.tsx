@@ -47,6 +47,10 @@ interface WorkspaceContextValue {
   selectCustomCwd: (cwd: string) => void;
   /** Clear the selected workspace. */
   clearWorkspace: () => void;
+  /** Whether the git changes panel is open. */
+  gitPanelOpen: boolean;
+  /** Toggle the git changes panel. */
+  toggleGitPanel: () => void;
 }
 
 const STORAGE_KEY = "paperclip.selectedWorkspaceId";
@@ -154,9 +158,14 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(CUSTOM_CWD_KEY, path);
   }, []);
 
+  // Workspace panel toggle (Changes/Runs/Activity right panel)
+  const [gitPanelOpen, setGitPanelOpen] = useState(false);
+  const toggleGitPanel = useCallback(() => setGitPanelOpen((prev) => !prev), []);
+
   const clearWorkspace = useCallback(() => {
     setSelectedId(null);
     setCustomCwd(null);
+    setGitPanelOpen(false);
     localStorage.removeItem(STORAGE_KEY);
     localStorage.removeItem(CUSTOM_CWD_KEY);
   }, []);
@@ -174,8 +183,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       selectWorkspace,
       selectCustomCwd,
       clearWorkspace,
+      gitPanelOpen,
+      toggleGitPanel,
     }),
-    [workspaces, selected, cwd, branch, dirty, loading, selectWorkspace, selectCustomCwd, clearWorkspace],
+    [workspaces, selected, cwd, branch, dirty, loading, selectWorkspace, selectCustomCwd, clearWorkspace, gitPanelOpen, toggleGitPanel],
   );
 
   return (

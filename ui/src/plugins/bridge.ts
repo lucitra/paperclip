@@ -76,6 +76,10 @@ export interface PluginHostContext {
   parentEntityId?: string | null;
   userId: string | null;
   renderEnvironment?: PluginRenderEnvironmentContext | null;
+  /** Selected workspace cwd from the global WorkspaceContext (Lucitra addition). */
+  workspaceCwd?: string | null;
+  /** Human-readable label for the selected workspace (Lucitra addition). */
+  workspaceLabel?: string | null;
 }
 
 export interface PluginModalBoundsRequest {

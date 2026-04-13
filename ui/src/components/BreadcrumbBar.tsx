@@ -1,8 +1,9 @@
-import { Link } from "@/lib/router";
-import { Menu } from "lucide-react";
+import { Link, useLocation } from "@/lib/router";
+import { Menu, PanelRightClose, PanelRightOpen } from "lucide-react";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { useSidebar } from "../context/SidebarContext";
 import { useCompany } from "../context/CompanyContext";
+import { useWorkspace } from "../context/WorkspaceContext";
 import { Button } from "@/components/ui/button";
 import {
   Breadcrumb,
@@ -30,6 +31,24 @@ function GlobalToolbarPlugins({ context }: { context: GlobalToolbarContext }) {
   );
 }
 
+function WorkspacePanelToggle() {
+  const { selected, gitPanelOpen, toggleGitPanel } = useWorkspace();
+  const location = useLocation();
+  const isWorkspaceRoute = /\/(workspace|terminal|plugins\/)/.test(location.pathname);
+  if (!selected || !isWorkspaceRoute) return null;
+  return (
+    <Button
+      variant="ghost"
+      size="icon-sm"
+      onClick={toggleGitPanel}
+      title={gitPanelOpen ? "Close workspace panel" : "Open workspace panel"}
+      className="shrink-0 text-muted-foreground/50 hover:text-foreground"
+    >
+      {gitPanelOpen ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
+    </Button>
+  );
+}
+
 export function BreadcrumbBar() {
   const { breadcrumbs } = useBreadcrumbs();
   const { toggleSidebar, isMobile } = useSidebar();
@@ -49,6 +68,7 @@ export function BreadcrumbBar() {
     return (
       <div className="border-b border-border px-4 md:px-6 h-12 shrink-0 flex items-center justify-end">
         {globalToolbarSlots}
+        <WorkspacePanelToggle />
       </div>
     );
   }
@@ -76,6 +96,7 @@ export function BreadcrumbBar() {
           </h1>
         </div>
         {globalToolbarSlots}
+        <WorkspacePanelToggle />
       </div>
     );
   }
@@ -108,6 +129,7 @@ export function BreadcrumbBar() {
         </Breadcrumb>
       </div>
       {globalToolbarSlots}
+      <WorkspacePanelToggle />
     </div>
   );
 }

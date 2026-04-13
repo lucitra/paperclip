@@ -25,21 +25,43 @@
 
 ## Lucitra Fork
 
-This is [Lucitra's](https://lucitra.ai) fork of Paperclip. We use Paperclip as the orchestration layer for our AI agent teams and contribute improvements back upstream where possible.
+This is [Lucitra's](https://lucitra.ai) private fork of Paperclip. We use Paperclip as the orchestration layer for an autonomous trading and development platform — AI agent teams that research markets, execute trades, and build software with human oversight via board governance.
 
-**What this fork adds:**
+**Upstream:** [paperclipai/paperclip](https://github.com/paperclipai/paperclip) · We sync regularly and keep our changes upstream-mergeable.
 
-- **Linear integration** — OAuth, bidirectional sync (issues, projects, labels, cycles), webhook handler, deletion sync
-- **Project status filters** — filter chips on the Projects page, sidebar hides completed/cancelled
-- **Plugin auto-install** — bundled plugins install on startup (`@lucitra/paperclip-plugin-linear`, `@lucitra/paperclip-plugin-chat`)
+### What this fork adds
 
-All changes are additive — we don't modify Paperclip's core architecture. Upstream updates merge cleanly.
+**Workspace-first UI** — The sidebar is restructured into two tabs:
+- **Workspaces** — Project/workspace tree for navigating repos and worktrees. Global `WorkspaceContext` persists selection and drives terminal cwd.
+- **More** — The original Paperclip sidebar nav (Issues, Agents, Dashboard, etc.), preserved verbatim for upstream mergeability.
+
+A workspace landing page with keyboard shortcuts (terminal, chat, search, dashboard) replaces the default route.
+
+**Linear integration** — OAuth, bidirectional sync (issues, projects, labels, cycles), webhook handler, deletion sync. Linear is source of truth; agent activity flows back.
+
+**Market data & research pipeline** — Plugins for S&P 500 universe data, market hours, Alpaca brokerage integration, LLM-powered trade idea generation, and research cards in chat.
+
+**Server enhancements:**
+- Auto-seed `PAPERCLIP_AGENT_JWT_SECRET` on first boot (no manual onboard step)
+- Auto-bootstrap company with Alpaca secrets
+- GitHub OAuth + App authentication
+- Hierarchical agent tree in sidebar (expand/collapse by org chart)
+- Enriched activity feed with entity names
 
 **Plugins:**
-- [paperclip-plugin-linear](https://github.com/lucitra/paperclip-plugin-linear) — Bidirectional Linear issue sync (agent tools + server-side integration)
-- [paperclip-plugin-chat](https://github.com/lucitra/paperclip-plugin-chat) — Chat interface for Paperclip agents
+- [@lucitra/paperclip-plugin-linear](https://github.com/lucitra/paperclip-plugin-linear) — Bidirectional Linear issue sync
+- [@lucitra/paperclip-plugin-chat](https://github.com/lucitra/paperclip-plugin-chat) — Chat interface with rich research cards
+- [@lucitra/paperclip-plugin-research](https://github.com/lucitra/paperclip-plugin-research) — LLM trade ideas, ticker selector, watchlist
+- [@lucitra/paperclip-plugin-market-data](https://github.com/lucitra/paperclip-plugin-market-data) — S&P 500 universe, market hours, Alpaca
+- [@lucitra/mcp-paperclip](packages/mcp-paperclip) — MCP server for Paperclip API access
 
-**Upstream:** [paperclipai/paperclip](https://github.com/paperclipai/paperclip)
+### Upstream mergeability
+
+The sidebar is the main structural change. It's split into two clear zones:
+1. `WorkspacesTab` + `ProjectWorkspaceTree` — our addition, self-contained
+2. `PaperclipNav` — original Paperclip sidebar content, uses all upstream components unchanged
+
+The only upstream-touching files are `App.tsx` (+8 lines), `main.tsx` (+3 lines), and `Sidebar.tsx` (wrapper with tabs). Everything else lives in new files or plugins.
 
 ---
 
@@ -210,7 +232,11 @@ If you already have Paperclip configured, rerunning `onboard` keeps the existing
 Or manually:
 
 ```bash
+# Upstream
 git clone https://github.com/paperclipai/paperclip.git
+# Lucitra fork
+git clone https://github.com/lucitra/paperclip.git
+
 cd paperclip
 pnpm install
 pnpm dev

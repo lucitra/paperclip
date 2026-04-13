@@ -2,6 +2,7 @@ import { useEffect, useMemo } from "react";
 import { Link, Navigate, useParams } from "@/lib/router";
 import { useQuery } from "@tanstack/react-query";
 import { useCompany } from "@/context/CompanyContext";
+import { useWorkspace } from "@/context/WorkspaceContext";
 import { useBreadcrumbs } from "@/context/BreadcrumbContext";
 import { pluginsApi } from "@/api/plugins";
 import { queryKeys } from "@/lib/queryKeys";
@@ -25,6 +26,7 @@ export function PluginPage() {
     pluginRoutePath?: string;
   }>();
   const { companies, selectedCompanyId } = useCompany();
+  const { selected: selectedWorkspace, cwd: workspaceCwd } = useWorkspace();
   const { setBreadcrumbs } = useBreadcrumbs();
   const routeCompany = useMemo(() => {
     if (!routeCompanyPrefix) return null;
@@ -81,12 +83,18 @@ export function PluginPage() {
     return matches[0] ?? null;
   }, [pluginId, pluginRoutePath, contributions]);
 
+  const workspaceLabel = selectedWorkspace
+    ? `${selectedWorkspace.project.name} / ${selectedWorkspace.workspace.name}`
+    : null;
+
   const context = useMemo(
     () => ({
       companyId: resolvedCompanyId ?? null,
       companyPrefix,
+      workspaceCwd: workspaceCwd ?? null,
+      workspaceLabel,
     }),
-    [resolvedCompanyId, companyPrefix],
+    [resolvedCompanyId, companyPrefix, workspaceCwd, workspaceLabel],
   );
 
   useEffect(() => {

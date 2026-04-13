@@ -54,6 +54,10 @@ export type PluginSlotContext = {
   /** Parent entity ID for nested slots (e.g. comment annotations within an issue). */
   parentEntityId?: string | null;
   projectRef?: string | null;
+  /** Selected workspace cwd from the global WorkspaceContext (Lucitra addition). */
+  workspaceCwd?: string | null;
+  /** Human-readable label for the selected workspace (Lucitra addition). */
+  workspaceLabel?: string | null;
 };
 
 export type ResolvedPluginSlot = PluginUiSlotDeclaration & {
@@ -702,6 +706,8 @@ function slotContextToHostContext(
     parentEntityId: pluginSlotContext.parentEntityId ?? null,
     userId,
     renderEnvironment: null,
+    workspaceCwd: pluginSlotContext.workspaceCwd ?? null,
+    workspaceLabel: pluginSlotContext.workspaceLabel ?? null,
   };
 }
 

@@ -40,6 +40,20 @@ export const projectsApi = {
   removeWorkspace: (projectId: string, workspaceId: string, companyId?: string) =>
     api.delete<ProjectWorkspace>(projectPath(projectId, companyId, `/workspaces/${encodeURIComponent(workspaceId)}`)),
   remove: (id: string, companyId?: string) => api.delete<Project>(projectPath(id, companyId)),
+
+  // ── Git operations ────────────────────────────────────────────────
   getWorkspaceGitInfo: (workspaceId: string) =>
-    api.get<{ branch: string | null; dirty: boolean }>(`/api/workspaces/${encodeURIComponent(workspaceId)}/git-info`),
+    api.get<{ branch: string | null; dirty: boolean }>(`/workspaces/${encodeURIComponent(workspaceId)}/git-info`),
+  getWorkspaceGitStatus: (workspaceId: string) =>
+    api.get<{ staged: GitStatusFile[]; unstaged: GitStatusFile[] }>(`/workspaces/${encodeURIComponent(workspaceId)}/git-status`),
+  getWorkspaceGitDiff: (workspaceId: string, path: string, staged: boolean) =>
+    api.get<{ diff: string }>(`/workspaces/${encodeURIComponent(workspaceId)}/git-diff?path=${encodeURIComponent(path)}&staged=${staged}`),
+  stageFiles: (workspaceId: string, paths: string[]) =>
+    api.post<{ ok: boolean }>(`/workspaces/${encodeURIComponent(workspaceId)}/git-stage`, { paths }),
+  unstageFiles: (workspaceId: string, paths: string[]) =>
+    api.post<{ ok: boolean }>(`/workspaces/${encodeURIComponent(workspaceId)}/git-unstage`, { paths }),
+  commitChanges: (workspaceId: string, message: string) =>
+    api.post<{ ok: boolean; summary: string }>(`/workspaces/${encodeURIComponent(workspaceId)}/git-commit`, { message }),
 };
+
+interface GitStatusFile { path: string; status: string }

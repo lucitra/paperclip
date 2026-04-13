@@ -221,6 +221,147 @@ export function projectRoutes(db: Db) {
     }
   });
 
+  // ── Git operations for workspaces ─────────────────────────────────
+  // All endpoints resolve the workspace cwd and run git commands on disk.
+
+  async function resolveWorkspaceCwd(req: Request, workspaceId: string): Promise<string> {
+    const workspace = await svc.getWorkspaceById(workspaceId);
+    if (!workspace) { throw Object.assign(new Error("Workspace not found"), { status: 404 }); }
+    const project = await svc.getById(workspace.projectId);
+    if (!project) { throw Object.assign(new Error("Project not found"), { status: 404 }); }
+    assertCompanyAccess(req, project.companyId);
+    if (!workspace.cwd) { throw Object.assign(new Error("Workspace has no local path"), { status: 422 }); }
+    return workspace.cwd;
+  }
+
+  // GET /workspaces/:id/git-status — file-level staged/unstaged/untracked
+  router.get("/workspaces/:workspaceId/git-status", async (req, res) => {
+    let cwd: string;
+    try { cwd = await resolveWorkspaceCwd(req, req.params.workspaceId as string); }
+    catch (err: any) { res.status(err.status ?? 500).json({ error: err.message }); return; }
+
+    try {
+      const { stdout } = await execFileAsync("git", ["status", "--porcelain=v1", "-uall"], { cwd, timeout: 10000 });
+      const staged: Array<{ path: string; status: string }> = [];
+      const unstaged: Array<{ path: string; status: string }> = [];
+
+      for (const line of stdout.split("\n")) {
+        if (!line || line.length < 4) continue;
+        const x = line[0]!; // index status
+        const y = line[1]!; // worktree status
+        // Handle renames: "R  old -> new"
+        const rawPath = line.slice(3);
+        const filePath = rawPath.includes(" -> ") ? rawPath.split(" -> ").pop()! : rawPath;
+
+        if (x === "?" && y === "?") {
+          unstaged.push({ path: filePath, status: "?" });
+        } else {
+          if (x !== " " && x !== "?") staged.push({ path: filePath, status: x });
+          if (y !== " " && y !== "?") unstaged.push({ path: filePath, status: y });
+        }
+      }
+
+      res.json({ staged, unstaged });
+    } catch {
+      res.json({ staged: [], unstaged: [] });
+    }
+  });
+
+  // GET /workspaces/:id/git-diff?path=...&staged=true/false
+  router.get("/workspaces/:workspaceId/git-diff", async (req, res) => {
+    let cwd: string;
+    try { cwd = await resolveWorkspaceCwd(req, req.params.workspaceId as string); }
+    catch (err: any) { res.status(err.status ?? 500).json({ error: err.message }); return; }
+
+    const filePath = req.query.path as string;
+    if (!filePath) { res.status(400).json({ error: "path query param required" }); return; }
+    const staged = req.query.staged === "true";
+
+    try {
+      const args = staged
+        ? ["diff", "--cached", "--", filePath]
+        : ["diff", "--", filePath];
+      const { stdout } = await execFileAsync("git", args, { cwd, timeout: 10000 });
+
+      // For untracked files, git diff returns nothing — read the file instead
+      if (!stdout && !staged) {
+        try {
+          const showResult = await execFileAsync("git", ["diff", "--no-index", "/dev/null", filePath], { cwd, timeout: 5000 });
+          res.json({ diff: showResult.stdout });
+          return;
+        } catch (e: any) {
+          // git diff --no-index exits with 1 when there are differences (expected)
+          if (e.stdout) { res.json({ diff: e.stdout }); return; }
+        }
+      }
+
+      res.json({ diff: stdout });
+    } catch {
+      res.json({ diff: "" });
+    }
+  });
+
+  // POST /workspaces/:id/git-stage — stage files
+  router.post("/workspaces/:workspaceId/git-stage", async (req, res) => {
+    let cwd: string;
+    try { cwd = await resolveWorkspaceCwd(req, req.params.workspaceId as string); }
+    catch (err: any) { res.status(err.status ?? 500).json({ error: err.message }); return; }
+
+    const paths = req.body?.paths;
+    if (!Array.isArray(paths) || paths.length === 0) {
+      res.status(400).json({ error: "paths array required" }); return;
+    }
+    if (paths.length > 500) {
+      res.status(400).json({ error: "Too many paths (max 500)" }); return;
+    }
+
+    try {
+      await execFileAsync("git", ["add", "--", ...paths], { cwd, timeout: 10000 });
+      res.json({ ok: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message ?? "git add failed" });
+    }
+  });
+
+  // POST /workspaces/:id/git-unstage — unstage files
+  router.post("/workspaces/:workspaceId/git-unstage", async (req, res) => {
+    let cwd: string;
+    try { cwd = await resolveWorkspaceCwd(req, req.params.workspaceId as string); }
+    catch (err: any) { res.status(err.status ?? 500).json({ error: err.message }); return; }
+
+    const paths = req.body?.paths;
+    if (!Array.isArray(paths) || paths.length === 0) {
+      res.status(400).json({ error: "paths array required" }); return;
+    }
+
+    try {
+      await execFileAsync("git", ["reset", "HEAD", "--", ...paths], { cwd, timeout: 10000 });
+      res.json({ ok: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message ?? "git reset failed" });
+    }
+  });
+
+  // POST /workspaces/:id/git-commit — commit staged changes
+  router.post("/workspaces/:workspaceId/git-commit", async (req, res) => {
+    let cwd: string;
+    try { cwd = await resolveWorkspaceCwd(req, req.params.workspaceId as string); }
+    catch (err: any) { res.status(err.status ?? 500).json({ error: err.message }); return; }
+
+    const message = req.body?.message;
+    if (typeof message !== "string" || !message.trim()) {
+      res.status(400).json({ error: "commit message required" }); return;
+    }
+
+    try {
+      const { stdout } = await execFileAsync("git", ["commit", "-m", message], { cwd, timeout: 15000 });
+      const summary = stdout.split("\n")[0] ?? "";
+      res.json({ ok: true, summary });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message ?? "git commit failed" });
+    }
+  });
+
   router.post("/projects/:id/workspaces", validate(createProjectWorkspaceSchema), async (req, res) => {
     const id = req.params.id as string;
     const existing = await svc.getById(id);

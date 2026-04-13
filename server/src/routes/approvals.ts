@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type Request } from "express";
 import type { Db } from "@paperclipai/db";
 import {
   addApprovalCommentSchema,
@@ -53,6 +53,15 @@ export function approvalRoutes(db: Db) {
     } catch (err) {
       logger.warn({ err, approvalId }, "failed to post approval event comment on linked issues");
     }
+  }
+
+  async function requireApprovalAccess(req: Request, id: string) {
+    const approval = await svc.getById(id);
+    if (!approval) {
+      return null;
+    }
+    assertCompanyAccess(req, approval.companyId);
+    return approval;
   }
 
   router.get("/companies/:companyId/approvals", async (req, res) => {
@@ -165,6 +174,10 @@ export function approvalRoutes(db: Db) {
   router.post("/approvals/:id/approve", validate(resolveApprovalSchema), async (req, res) => {
     assertBoard(req);
     const id = req.params.id as string;
+    if (!(await requireApprovalAccess(req, id))) {
+      res.status(404).json({ error: "Approval not found" });
+      return;
+    }
     const { approval, applied } = await svc.approve(
       id,
       req.body.decidedByUserId ?? "board",
@@ -275,6 +288,10 @@ export function approvalRoutes(db: Db) {
   router.post("/approvals/:id/reject", validate(resolveApprovalSchema), async (req, res) => {
     assertBoard(req);
     const id = req.params.id as string;
+    if (!(await requireApprovalAccess(req, id))) {
+      res.status(404).json({ error: "Approval not found" });
+      return;
+    }
     const { approval, applied } = await svc.reject(
       id,
       req.body.decidedByUserId ?? "board",
@@ -314,6 +331,10 @@ export function approvalRoutes(db: Db) {
     async (req, res) => {
       assertBoard(req);
       const id = req.params.id as string;
+      if (!(await requireApprovalAccess(req, id))) {
+        res.status(404).json({ error: "Approval not found" });
+        return;
+      }
       const approval = await svc.requestRevision(
         id,
         req.body.decidedByUserId ?? "board",

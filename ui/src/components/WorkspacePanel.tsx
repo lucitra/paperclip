@@ -18,6 +18,8 @@ import {
   RefreshCw,
   X,
   ChevronRight,
+  ChevronUp,
+  ChevronDown,
   FileText,
   FilePlus,
   FileX,
@@ -27,7 +29,9 @@ import {
   Play,
   Clock,
   History,
+  TerminalSquare,
 } from "lucide-react";
+import { TerminalPanel } from "./Terminal";
 import { useWorkspace } from "../context/WorkspaceContext";
 import { useCompany } from "../context/CompanyContext";
 import { projectsApi } from "../api/projects";
@@ -44,8 +48,9 @@ type PanelTab = "changes" | "runs" | "activity";
 // ═══════════════════════════════════════════════════════════════════
 
 export function WorkspacePanel({ onClose }: { onClose: () => void }) {
-  const { selected, branch } = useWorkspace();
+  const { selected, branch, cwd } = useWorkspace();
   const [activeTab, setActiveTab] = useState<PanelTab>("changes");
+  const [terminalOpen, setTerminalOpen] = useState(false);
 
   if (!selected) {
     return (
@@ -62,11 +67,42 @@ export function WorkspacePanel({ onClose }: { onClose: () => void }) {
     <aside className="w-[360px] border-l border-border bg-background flex flex-col min-h-0 shrink-0">
       <PanelHeader branch={branch} onClose={onClose} />
       <TabBar activeTab={activeTab} onTabChange={setActiveTab} />
-      <div className="flex-1 overflow-auto min-h-0">
+
+      {/* Top section: tab content */}
+      <div className={cn("overflow-auto min-h-0", terminalOpen ? "flex-1 basis-1/2" : "flex-1")}>
         {activeTab === "changes" && <ChangesTab />}
         {activeTab === "runs" && <RunsTab />}
         {activeTab === "activity" && <ActivityTab />}
       </div>
+
+      {/* Bottom section: terminal (Conductor-style Setup|Run|Terminal tabs) */}
+      <div className="border-t border-border shrink-0 flex items-center">
+        <button
+          onClick={() => setTerminalOpen(!terminalOpen)}
+          className={cn(
+            "flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium transition-colors",
+            terminalOpen ? "text-foreground" : "text-muted-foreground/50 hover:text-muted-foreground",
+          )}
+        >
+          <TerminalSquare className="h-3 w-3" />
+          Terminal
+        </button>
+        <div className="ml-auto pr-2">
+          {terminalOpen && (
+            <button
+              onClick={() => setTerminalOpen(false)}
+              className="p-0.5 text-muted-foreground/40 hover:text-foreground"
+            >
+              <ChevronDown className="h-3 w-3" />
+            </button>
+          )}
+        </div>
+      </div>
+      {terminalOpen && cwd && (
+        <div className="min-h-[200px] max-h-[40vh] flex-shrink-0" style={{ height: "35vh" }}>
+          <TerminalPanel cwd={cwd} className="h-full" />
+        </div>
+      )}
     </aside>
   );
 }

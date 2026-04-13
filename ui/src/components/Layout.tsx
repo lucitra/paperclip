@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { BookOpen, Moon, Settings, Sun } from "lucide-react";
+import { BookOpen, Moon, PanelRightOpen, Settings, Sun } from "lucide-react";
 import { Link, Outlet, useLocation, useNavigate, useNavigationType, useParams } from "@/lib/router";
 import { CompanyRail } from "./CompanyRail";
 import { Sidebar } from "./Sidebar";
@@ -459,7 +459,7 @@ export function Layout() {
           >
             <BreadcrumbBar />
           </div>
-          <div className={cn(isMobile ? "block" : "flex flex-1 min-h-0")}>
+          <div className={cn(isMobile ? "block" : "relative flex flex-1 min-h-0")}>
             <main
               id="main-content"
               ref={mainContentRef}
@@ -479,8 +479,18 @@ export function Layout() {
               )}
             </main>
             <PropertiesPanel />
-            {gitPanelOpen && selected && /\/(workspace|terminal|plugins\/)/.test(location.pathname) && (
-              <WorkspacePanel onClose={toggleGitPanel} />
+            {selected && /\/(workspace|terminal|plugins\/)/.test(location.pathname) && (
+              gitPanelOpen ? (
+                <WorkspacePanel onClose={toggleGitPanel} />
+              ) : (
+                <button
+                  onClick={toggleGitPanel}
+                  className="absolute top-3 right-3 z-10 p-1.5 rounded-md border border-border bg-background/80 backdrop-blur text-muted-foreground/50 hover:text-foreground hover:border-foreground/20 transition-colors"
+                  title="Open workspace panel"
+                >
+                  <PanelRightOpen className="h-4 w-4" />
+                </button>
+              )
             )}
           </div>
         </div>

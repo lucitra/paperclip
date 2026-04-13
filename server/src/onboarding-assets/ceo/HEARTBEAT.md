@@ -59,7 +59,8 @@ If you have pending proposals awaiting board response, check `GET /api/companies
 
 ## 6. Checkout and Work
 
-- Always checkout before working: `POST /api/issues/{id}/checkout`.
+- For scoped issue wakes, Paperclip may already checkout the current issue in the harness before your run starts.
+- Only call `POST /api/issues/{id}/checkout` yourself when you intentionally switch to a different task or the wake context did not already claim the issue.
 - Never retry a 409 -- that task belongs to someone else.
 - Do the work. Update status and comment when done.
 - If the work expands beyond the original scope, stop and request board approval.

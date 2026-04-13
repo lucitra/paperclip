@@ -18,14 +18,11 @@ import {
   LayoutDashboard,
   DollarSign,
   History,
-  Search,
-  SquarePen,
   Network,
   Boxes,
   Repeat,
   Settings,
   MessageSquare,
-  ChevronDown,
   ChevronRight,
   TerminalSquare,
   FolderOpen,
@@ -322,12 +319,6 @@ function PaperclipNav({
   liveRunCount: number;
   inboxBadge: { inbox: number; failedRuns: number };
 }) {
-  const [moreOpen, setMoreOpen] = useState(false);
-
-  function openSearch() {
-    document.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }));
-  }
-
   return (
     <nav className="flex-1 min-h-0 overflow-y-auto scrollbar-auto-hide flex flex-col gap-4 px-3 py-2">
       {/* Primary nav */}
@@ -352,43 +343,23 @@ function PaperclipNav({
         />
       </div>
 
+      <SidebarSection label="Work">
+        <SidebarNavItem to="/issues" label="Issues" icon={CircleDot} />
+        <SidebarNavItem to="/routines" label="Routines" icon={Repeat} />
+        <SidebarNavItem to="/goals" label="Goals" icon={Target} />
+      </SidebarSection>
+
       <SidebarProjects />
 
       <SidebarAgents />
 
-      {/* Collapsible "More" for secondary items */}
-      <div className="flex flex-col gap-0.5">
-        <button
-          onClick={() => setMoreOpen(!moreOpen)}
-          className="flex items-center gap-2.5 px-3 py-2 text-[13px] font-medium text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors w-full"
-        >
-          <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${moreOpen ? "" : "-rotate-90"}`} />
-          <span className="truncate">More</span>
-        </button>
-        {moreOpen && (
-          <div className="flex flex-col gap-0.5 ml-1">
-            <button
-              onClick={() => openNewIssue()}
-              className="flex items-center gap-2.5 px-3 py-2 text-[13px] font-medium text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors"
-            >
-              <SquarePen className="h-4 w-4 shrink-0" />
-              <span className="truncate">New Issue</span>
-            </button>
-            <SidebarNavItem to="/issues" label="Issues" icon={CircleDot} />
-            <SidebarNavItem to="/routines" label="Routines" icon={Repeat} textBadge="Beta" textBadgeTone="amber" />
-            <SidebarNavItem to="/goals" label="Goals" icon={Target} />
-            <SidebarNavItem to="/org" label="Org" icon={Network} />
-            <SidebarNavItem to="/skills" label="Skills" icon={Boxes} />
-            <SidebarNavItem to="/costs" label="Costs" icon={DollarSign} />
-            <SidebarNavItem to="/activity" label="Activity" icon={History} />
-            <SidebarNavItem to="/approvals" label="Approvals" icon={SquarePen} />
-          </div>
-        )}
-      </div>
-
-      <div className="flex flex-col gap-0.5 mt-auto">
+      <SidebarSection label="Company">
+        <SidebarNavItem to="/org" label="Org" icon={Network} />
+        <SidebarNavItem to="/skills" label="Skills" icon={Boxes} />
+        <SidebarNavItem to="/costs" label="Costs" icon={DollarSign} />
+        <SidebarNavItem to="/activity" label="Activity" icon={History} />
         <SidebarNavItem to="/company/settings" label="Settings" icon={Settings} />
-      </div>
+      </SidebarSection>
 
       <PluginSlotOutlet
         slotTypes={["sidebarPanel"]}

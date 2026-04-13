@@ -479,7 +479,9 @@ export function Layout() {
               )}
             </main>
             <PropertiesPanel />
-            {gitPanelOpen && selected && <WorkspacePanel onClose={toggleGitPanel} />}
+            {gitPanelOpen && selected && /\/(workspace|terminal|plugins\/)/.test(location.pathname) && (
+              <WorkspacePanel onClose={toggleGitPanel} />
+            )}
           </div>
         </div>
       </div>

@@ -14,6 +14,8 @@ import "@xterm/xterm/css/xterm.css";
 interface TerminalProps {
   /** Working directory for the terminal session. */
   cwd: string;
+  /** Command to run in the shell once the session is ready. Sent once per mount. */
+  initialCommand?: string;
   /** Called when the session is created. */
   onSessionCreated?: (sessionId: string) => void;
   /** Called when the terminal process exits. */
@@ -22,7 +24,7 @@ interface TerminalProps {
   className?: string;
 }
 
-export function TerminalPanel({ cwd, onSessionCreated, onExit, className }: TerminalProps) {
+export function TerminalPanel({ cwd, initialCommand, onSessionCreated, onExit, className }: TerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState<"connecting" | "connected" | "disconnected" | "error">("connecting");
   const [error, setError] = useState<string | null>(null);
@@ -117,6 +119,14 @@ export function TerminalPanel({ cwd, onSessionCreated, onExit, className }: Term
         if (cancelled) return;
         setStatus("connected");
         ws!.send(JSON.stringify({ type: "resize", cols: term!.cols, rows: term!.rows }));
+        if (initialCommand) {
+          // Defer a beat so the shell has rendered its prompt before the command appears.
+          setTimeout(() => {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+              ws.send(initialCommand + "\n");
+            }
+          }, 50);
+        }
       };
 
       ws.onmessage = (event) => {

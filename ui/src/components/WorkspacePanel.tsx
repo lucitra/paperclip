@@ -42,8 +42,10 @@ import {
   CircleDot,
   ExternalLink,
   Loader2,
+  Terminal as TerminalIcon,
 } from "lucide-react";
 import { TerminalPanel } from "./Terminal";
+import { ScriptsTab } from "./ScriptsTab";
 import { useWorkspace } from "../context/WorkspaceContext";
 import { useCompany } from "../context/CompanyContext";
 import { projectsApi, type FileEntry, type CiCheck } from "../api/projects";
@@ -53,7 +55,7 @@ import { queryKeys } from "../lib/queryKeys";
 import { cn } from "../lib/utils";
 import type { ActivityEvent } from "@paperclipai/shared";
 
-type PanelTab = "changes" | "files" | "review" | "runs" | "activity";
+type PanelTab = "changes" | "files" | "review" | "runs" | "scripts" | "activity";
 
 // ═══════════════════════════════════════════════════════════════════
 // WorkspacePanel — main container with tab bar
@@ -63,6 +65,15 @@ export function WorkspacePanel({ onClose }: { onClose: () => void }) {
   const { selected, branch, cwd } = useWorkspace();
   const [activeTab, setActiveTab] = useState<PanelTab>("changes");
   const [terminalOpen, setTerminalOpen] = useState(false);
+  const [terminalCommand, setTerminalCommand] = useState<string | undefined>(undefined);
+  // Bumped each time a script is run so the terminal remounts with a fresh shell.
+  const [terminalSessionKey, setTerminalSessionKey] = useState(0);
+
+  const runScript = useCallback((command: string) => {
+    setTerminalCommand(command);
+    setTerminalOpen(true);
+    setTerminalSessionKey((k) => k + 1);
+  }, []);
 
   if (!selected) {
     return (
@@ -86,6 +97,7 @@ export function WorkspacePanel({ onClose }: { onClose: () => void }) {
         {activeTab === "files" && <FilesTab />}
         {activeTab === "review" && <ReviewTab />}
         {activeTab === "runs" && <RunsTab />}
+        {activeTab === "scripts" && <ScriptsTab workspaceId={selected.workspace.id} onRun={runScript} />}
         {activeTab === "activity" && <ActivityTab />}
       </div>
 
@@ -114,7 +126,12 @@ export function WorkspacePanel({ onClose }: { onClose: () => void }) {
       </div>
       {terminalOpen && cwd && (
         <div className="min-h-[200px] max-h-[40vh] flex-shrink-0" style={{ height: "35vh" }}>
-          <TerminalPanel cwd={cwd} className="h-full" />
+          <TerminalPanel
+            key={terminalSessionKey}
+            cwd={cwd}
+            initialCommand={terminalCommand}
+            className="h-full"
+          />
         </div>
       )}
     </aside>
@@ -147,6 +164,7 @@ function TabBar({ activeTab, onTabChange }: { activeTab: PanelTab; onTabChange: 
     { id: "files", label: "Files", icon: Folder },
     { id: "review", label: "Review", icon: GitPullRequest },
     { id: "runs", label: "Runs", icon: Play },
+    { id: "scripts", label: "Scripts", icon: TerminalIcon },
     { id: "activity", label: "Activity", icon: History },
   ];
 
@@ -183,7 +201,17 @@ function ChangesTab() {
   const [commitMessage, setCommitMessage] = useState("");
   const [stagedExpanded, setStagedExpanded] = useState(true);
   const [unstagedExpanded, setUnstagedExpanded] = useState(true);
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [selectedFile, setSelectedFile] = useState<{ path: string; staged: boolean } | null>(null);
+
+  const toggleGroup = useCallback((group: string) => {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(group)) next.delete(group);
+      else next.add(group);
+      return next;
+    });
+  }, []);
 
   const { data: status, isLoading, refetch } = useQuery({
     queryKey: queryKeys.git.status(workspaceId),
@@ -218,6 +246,7 @@ function ChangesTab() {
 
   const staged = status?.staged ?? [];
   const unstaged = status?.unstaged ?? [];
+  const unstagedGroups = useMemo(() => groupByTopLevel(unstaged), [unstaged]);
 
   // Diff sub-view
   if (selectedFile) {
@@ -294,13 +323,39 @@ function ChangesTab() {
               onToggle={() => setUnstagedExpanded(!unstagedExpanded)}
               action={{ label: "Stage all", onClick: () => stageMutation.mutate(unstaged.map((f) => f.path)) }}
             />
-            {unstagedExpanded && unstaged.map((f) => (
-              <GitFileItem key={`u:${f.path}`} path={f.path} status={f.status} staged={false}
-                onToggle={() => stageMutation.mutate([f.path])}
-                onSelect={() => setSelectedFile({ path: f.path, staged: false })}
-                selected={selectedFile?.path === f.path && selectedFile?.staged === false}
-              />
-            ))}
+            {unstagedExpanded &&
+              (unstagedGroups.length <= 1 ? (
+                // Single group (or empty) — render flat, no sub-headers needed.
+                unstaged.map((f) => (
+                  <GitFileItem key={`u:${f.path}`} path={f.path} status={f.status} staged={false}
+                    onToggle={() => stageMutation.mutate([f.path])}
+                    onSelect={() => setSelectedFile({ path: f.path, staged: false })}
+                    selected={selectedFile?.path === f.path && selectedFile?.staged === false}
+                  />
+                ))
+              ) : (
+                unstagedGroups.map(({ group, files }) => {
+                  const collapsed = collapsedGroups.has(group);
+                  return (
+                    <div key={`g:${group}`}>
+                      <GroupHeader
+                        label={group}
+                        count={files.length}
+                        collapsed={collapsed}
+                        onToggle={() => toggleGroup(group)}
+                        onStageAll={() => stageMutation.mutate(files.map((f) => f.path))}
+                      />
+                      {!collapsed && files.map((f) => (
+                        <GitFileItem key={`u:${f.path}`} path={f.path} status={f.status} staged={false}
+                          onToggle={() => stageMutation.mutate([f.path])}
+                          onSelect={() => setSelectedFile({ path: f.path, staged: false })}
+                          selected={selectedFile?.path === f.path && selectedFile?.staged === false}
+                        />
+                      ))}
+                    </div>
+                  );
+                })
+              ))}
           </>
         )}
       </div>
@@ -840,4 +895,62 @@ function SectionHeader({ label, count, expanded, onToggle, action }: {
       )}
     </div>
   );
+}
+
+function GroupHeader({
+  label,
+  count,
+  collapsed,
+  onToggle,
+  onStageAll,
+}: {
+  label: string;
+  count: number;
+  collapsed: boolean;
+  onToggle: () => void;
+  onStageAll: () => void;
+}) {
+  return (
+    <div className="group flex items-center gap-1 pl-4 pr-2 py-0.5 hover:bg-accent/20">
+      <button
+        onClick={onToggle}
+        className="flex items-center gap-1 text-[10px] font-mono text-muted-foreground/60 hover:text-foreground bg-transparent border-none cursor-pointer p-0"
+      >
+        <ChevronRight className={cn("h-2.5 w-2.5 transition-transform", !collapsed && "rotate-90")} />
+        {label}
+      </button>
+      <span className="text-[10px] text-muted-foreground/40">{count}</span>
+      <button
+        onClick={onStageAll}
+        className="ml-auto text-[10px] text-muted-foreground/40 hover:text-foreground opacity-0 group-hover:opacity-100 bg-transparent border-none cursor-pointer p-0 transition-opacity"
+        title={`Stage all in ${label}`}
+      >
+        Stage all
+      </button>
+    </div>
+  );
+}
+
+/**
+ * Bucket files by their first path segment. Files with no slash go into a
+ * synthetic "./" group (rendered as root). Returns groups sorted alphabetically,
+ * with the root group (if any) pinned first.
+ */
+function groupByTopLevel<T extends { path: string }>(files: T[]): { group: string; files: T[] }[] {
+  if (files.length === 0) return [];
+  const buckets = new Map<string, T[]>();
+  for (const f of files) {
+    const i = f.path.indexOf("/");
+    const key = i === -1 ? "./" : f.path.slice(0, i) + "/";
+    const existing = buckets.get(key);
+    if (existing) existing.push(f);
+    else buckets.set(key, [f]);
+  }
+  return Array.from(buckets.entries())
+    .sort(([a], [b]) => {
+      if (a === "./") return -1;
+      if (b === "./") return 1;
+      return a.localeCompare(b);
+    })
+    .map(([group, files]) => ({ group, files }));
 }

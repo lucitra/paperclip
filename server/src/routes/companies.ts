@@ -202,7 +202,10 @@ export function companyRoutes(db: Db, storage?: StorageService) {
     // Seed secrets after import creates/updates a company (same reason as POST /)
     if (result.company.action === "created") {
       import("../auto-seed.js")
-        .then((m) => m.autoSeedResearchSecrets())
+        .then(async (m) => {
+          await m.autoSeedResearchSecrets();
+          await m.autoSeedKalshiSecrets();
+        })
         .catch(() => {/* best-effort */});
     }
   });
@@ -301,11 +304,14 @@ export function companyRoutes(db: Db, storage?: StorageService) {
     }
     res.status(201).json(company);
 
-    // Fire-and-forget: seed research/market-data secrets from env vars.
-    // On fresh install the startup seed finds zero companies and skips —
-    // re-run now that a company exists.
+    // Fire-and-forget: seed plugin secrets from env vars.  On fresh
+    // install the startup seed finds zero companies and skips — re-run
+    // now that a company exists.
     import("../auto-seed.js")
-      .then((m) => m.autoSeedResearchSecrets())
+      .then(async (m) => {
+        await m.autoSeedResearchSecrets();
+        await m.autoSeedKalshiSecrets();
+      })
       .catch(() => {/* best-effort */});
   });
 

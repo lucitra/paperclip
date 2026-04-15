@@ -151,7 +151,7 @@ async function autoInstallBundledPlugins(_db: import("@paperclipai/db").Db) {
 }
 
 // Extracted to auto-seed.ts to avoid circular imports when called from routes.
-import { autoSeedResearchSecrets } from "./auto-seed.js";
+import { autoSeedKalshiSecrets, autoSeedResearchSecrets } from "./auto-seed.js";
 
 /**
  * Bootstrap the Lucitra Capital trading desk agent company from the
@@ -897,6 +897,7 @@ export async function startServer(): Promise<StartedServer> {
   // for reference but no longer runs on startup.
   void autoInstallBundledPlugins(db as any)
     .then(() => autoSeedResearchSecrets())
+    .then(() => autoSeedKalshiSecrets())
     .catch((err) => {
       logger.warn({ err }, "auto-install/seed failed (non-fatal)");
     });
